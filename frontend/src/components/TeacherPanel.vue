@@ -6,7 +6,7 @@
 
     <article class="panel-card">
       <div class="section-head class-section-head">
-        <h3>小组点数和统计图（8组）</h3>
+        <h3>小组试验结果统计图</h3>
       </div>
       <div class="group-grid">
         <div v-for="group in groupsOverview" :key="group.group_id" class="mini-card">
@@ -20,7 +20,7 @@
               :class="{ 'mini-summary-toggle-btn-active': isMiniSummaryReady(group) }"
               @click="toggleMiniSummary(group.group_id)"
             >
-              {{ isMiniSummaryVisible(group.group_id) ? '试验结果' : '试验结果' }}
+              {{ isMiniSummaryVisible(group.group_id) ? '统计结果 ' : '统计结果' }}
             </button>
           </div>
           <div class="mini-summary-row" v-if="isMiniSummaryVisible(group.group_id)">
@@ -42,31 +42,12 @@
 
     <article class="panel-card">
       <div class="section-head class-section-head">
-        <h3>全班点数和统计图</h3>
+        <h3>全班试验结果统计图</h3>
       </div>
-      <div class="group-filter-row">
-        <label class="group-filter-item all-item">
-          <input
-            type="checkbox"
-            :checked="isAllSelected"
-            @change="toggleAllGroups($event)"
-          />
-          <span>全部</span>
-        </label>
-        <label
-          v-for="group in groupsOverview"
-          :key="`filter-${group.group_id}`"
-          class="group-filter-item"
-        >
-          <input
-            type="checkbox"
-            :checked="selectedGroupIds.includes(group.group_id)"
-            @change="toggleGroup(group.group_id, $event)"
-          />
-          <span>{{ group.group_name }}</span>
-        </label>
+      <div class="class-overview-row">
+        <div ref="classChartRef" class="class-chart" :style="{ height: `${classChartHeight}px` }"></div>
+        <div ref="classPieChartRef" class="class-pie-chart"></div>
       </div>
-      <div ref="classChartRef" class="class-chart" :style="{ height: `${classChartHeight}px` }"></div>
       <div class="class-stats-row">
         <article class="class-stat-card class-a-card">
           <span class="class-stat-icon">●</span>
@@ -87,16 +68,15 @@
 
     <article class="panel-card">
       <div class="section-head sim-section-head">
-        <h3>大数据模拟掷一掷</h3>
+        <h3>大数据试验统计</h3>
       </div>
       <div class="sim-controls">
         <input
-          v-model.number="simulationInput"
+          v-model="simulationInput"
           type="number"
           min="0"
-          max="1000000"
           class="sim-input"
-          placeholder="输入模拟次数，例如 10000"
+          placeholder="请输入模拟次数"
         />
         <button @click="runSimulationAndDice" :disabled="simulating || isDiceRolling" class="sim-btn">
           {{ (simulating || isDiceRolling) ? '模拟中...' : '开始模拟' }}
@@ -111,11 +91,12 @@
               <td v-for="item in simulationDisplayRecords" :key="`num-${item.number}`">{{ item.number }}</td>
             </tr>
             <tr>
-              <th>数量/次</th>
+              <th>次数</th>
               <td
                 v-for="item in simulationDisplayRecords"
                 :key="`cnt-${item.number}`"
                 :class="[2, 3, 4, 10, 11, 12].includes(item.number) ? 'sim-count-a' : 'sim-count-b'"
+                :style="getSimulationTableCountStyle()"
               >
                 {{ item.count }}
               </td>
@@ -192,7 +173,7 @@ export default {
         group_b_total: 0,
         winner: 'Tie'
       },
-      simulationInput: 0,
+      simulationInput: '',
       simulationData: {
         records: Array.from({ length: 11 }, (_, idx) => ({ number: idx + 2, count: 0 })),
         group_a_total: 0,
@@ -203,6 +184,7 @@ export default {
       simulating: false,
       isFetchingOverview: false,
       classChart: null,
+      classPieChart: null,
       simChart: null,
       miniCharts: {},
       miniChartEls: {},
@@ -215,7 +197,9 @@ export default {
       socket: null,
       simAnimatedRecords: [],
       simulationTimer: null,
-      simulationAxisMax: 3000,
+      simAnimationAxisStartMax: null,
+      simAnimationAxisMax: null,
+      simAnimationLabelFontSize: null,
       plannedSimulationDurationMs: 0,
       classChartHeight: 360,
       simChartHeight: 360,
@@ -300,8 +284,7 @@ export default {
   },
   methods: {
     getSimulationDurationMs(targetTimes) {
-      if (targetTimes === 30000) return 20000
-      return (targetTimes / 10000) * 8000
+      return 10000
     },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
@@ -313,12 +296,12 @@ export default {
     },
     async runSimulationAndDice() {
       if (this.simulating || this.isDiceRolling) return
-      if (!this.simulationInput || Number(this.simulationInput) < 1) {
+      const targetTimes = Number(this.simulationInput)
+      if (!Number.isInteger(targetTimes) || targetTimes < 1) {
         this.error = '请输入大于 0 的模拟次数'
         return
       }
       this.error = ''
-      const targetTimes = Number(this.simulationInput) || 0
       this.plannedSimulationDurationMs = this.getSimulationDurationMs(targetTimes)
       this.startDiceSimulation()
       await this.runSimulation()
@@ -333,10 +316,6 @@ export default {
       videoEl.muted = false
       videoEl.volume = 1
       this.syncDiceVideoLoop()
-      const playPromise = videoEl.play()
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {})
-      }
     },
     onDiceVideoError() {
       if (this.diceVideoSrcIndex >= this.diceVideoSrcCandidates.length - 1) {
@@ -365,13 +344,15 @@ export default {
       }
       this.syncDiceVideoLoop()
     },
-    stopDiceSimulation() {
+    stopDiceSimulation(shouldResetFrame = true) {
       this.isDiceRolling = false
       const videoEl = this.$refs.diceVideoRef
       if (!videoEl) return
       videoEl.loop = false
       videoEl.pause()
-      videoEl.currentTime = 0
+      if (shouldResetFrame) {
+        videoEl.currentTime = 0
+      }
     },
     setMiniChartRef(groupId) {
       return el => {
@@ -398,6 +379,72 @@ export default {
       if (winner === 'B') return 'class-winner-b-card'
       return 'class-winner-tie-card'
     },
+    getGroupTotalCount(group) {
+      if (!Array.isArray(group?.records)) return 0
+      return group.records.reduce((sum, record) => sum + Number(record.count || 0), 0)
+    },
+    getClassPieColors() {
+      if (this.isAllSelected) {
+        return this.groupsOverview.map(() => '#D92121')
+      }
+
+      const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#14b8a6', '#eab308', '#6366f1']
+      return this.groupsOverview.map((group, idx) => {
+        if (this.selectedGroupIds.includes(group.group_id)) {
+          return palette[idx % palette.length]
+        }
+        return '#cbd5e1'
+      })
+    },
+    renderClassPieChart() {
+      if (!this.$refs.classPieChartRef) return
+      if (!this.classPieChart) {
+        this.classPieChart = echarts.init(this.$refs.classPieChartRef)
+        this.classPieChart.on('click', (params) => {
+          const groupId = Number(params?.data?.groupId)
+          if (!Number.isInteger(groupId)) return
+
+          if (this.selectedGroupIds.includes(groupId)) {
+            this.selectedGroupIds = this.selectedGroupIds.filter(id => id !== groupId)
+          } else {
+            this.selectedGroupIds = [...this.selectedGroupIds, groupId]
+          }
+
+          this.$nextTick(() => {
+            this.renderClassChart()
+            this.renderClassPieChart()
+          })
+        })
+      }
+
+      const colors = this.getClassPieColors()
+      const pieData = this.groupsOverview.map((group, idx) => ({
+        value: this.getGroupTotalCount(group),
+        name: group.group_name,
+        groupId: group.group_id,
+        itemStyle: { color: colors[idx] }
+      }))
+
+      this.classPieChart.setOption({
+        tooltip: { trigger: 'item' },
+        series: [
+          {
+            type: 'pie',
+            radius: ['40%', '74%'],
+            center: ['50%', '50%'],
+            avoidLabelOverlap: false,
+            label: {
+              formatter: (params) => params?.data?.name || '',
+              fontSize: 11,
+              color: '#334155',
+              overflow: 'none'
+            },
+            labelLine: { length: 8, length2: 8, smooth: false },
+            data: pieData
+          }
+        ]
+      })
+    },
     getAxisInterval(maxValue) {
       if (maxValue <= 10) return 1
       return Math.ceil(maxValue / 10)
@@ -419,6 +466,25 @@ export default {
       const headroom = Math.max(1, Math.ceil(maxValue * 0.08))
       return maxValue + headroom
     },
+    getAdaptiveSimulationValueFontSize(records = this.simulationDisplayRecords) {
+      const maxDigits = Math.max(
+        1,
+        ...records.map(item => String(Math.abs(Math.round(Number(item?.count || 0)))).length)
+      )
+      if (maxDigits <= 2) return 24
+      if (maxDigits === 3) return 22
+      if (maxDigits === 4) return 20
+      if (maxDigits === 5) return 18
+      if (maxDigits === 6) return 16
+      if (maxDigits === 7) return 14
+      return 12
+    },
+    getSimulationTableCountStyle() {
+      return {
+        fontSize: `${this.getAdaptiveSimulationValueFontSize()}px`,
+        lineHeight: 1.15
+      }
+    },
     isMiniSummaryReady(group) {
       const groupATotal = Number(group?.group_a_total ?? 0)
       const groupBTotal = Number(group?.group_b_total ?? 0)
@@ -429,6 +495,7 @@ export default {
       this.selectedGroupIds = checked ? [...this.allGroupIds] : []
       this.$nextTick(() => {
         this.renderClassChart()
+        this.renderClassPieChart()
       })
     },
     getMiniSummaryTexts(group) {
@@ -530,6 +597,7 @@ export default {
       }
       this.$nextTick(() => {
         this.renderClassChart()
+        this.renderClassPieChart()
       })
     },
     normalizeGroupIds(groupIds) {
@@ -599,12 +667,16 @@ export default {
 
         const currentGroupIds = this.groupsOverview.map(group => group.group_id)
         this.selectedGroupIds = this.selectedGroupIds.filter(id => currentGroupIds.includes(id))
+        if (!this.selectedGroupIds.length && currentGroupIds.length) {
+          this.selectedGroupIds = [...currentGroupIds]
+        }
         this.syncMiniSummaryVisibility()
         this.refreshVisibleMiniSummaryTexts()
 
         this.$nextTick(() => {
           this.renderMiniCharts(shouldUseFullFetch ? [] : groupIdsToRedraw)
           this.renderClassChart()
+          this.renderClassPieChart()
         })
       } catch (err) {
         this.error = '获取教师端数据失败：' + (err.response?.data?.detail || err.message)
@@ -709,7 +781,7 @@ export default {
             z: 5,
             min: 0,
             max: axisMax,
-            name: '数量/次',
+            name: '次数',
             nameLocation: 'end',
             nameGap: 8,
             nameTextStyle: { color: '#334155', fontSize: 9, fontWeight: 600 },
@@ -795,7 +867,7 @@ export default {
           z: 5,
           min: 0,
           max: alignedAxisMax,
-          name: '数量/次',
+          name: '次数',
           nameLocation: 'end',
           nameGap: 10,
           nameTextStyle: { color: '#334155', fontSize: 12, fontWeight: 600 },
@@ -823,7 +895,8 @@ export default {
       })
     },
     async runSimulation() {
-      if (!this.simulationInput || this.simulationInput < 1) {
+      const targetTimes = Number(this.simulationInput)
+      if (!Number.isInteger(targetTimes) || targetTimes < 1) {
         this.error = '请输入大于 0 的模拟次数'
         this.stopDiceSimulation()
         return
@@ -831,7 +904,7 @@ export default {
       this.simulating = true
       try {
         const res = await axios.post('/api/teacher/simulate', null, {
-          params: { total_times: this.simulationInput }
+          params: { total_times: targetTimes }
         })
         this.simulationData = res.data
         if (this.simulationTimer) {
@@ -843,12 +916,28 @@ export default {
           number: item.number,
           count: 0
         }))
-        this.simulationAxisMax = 3000
+        const finalMaxCount = this.simulationData.records.length
+          ? Math.max(...this.simulationData.records.map(item => Number(item.count || 0)))
+          : 0
+        this.simAnimationAxisStartMax = 10
+        this.simAnimationAxisMax = this.getAxisMaxWithHeadroom(finalMaxCount, 10)
+        this.simAnimationLabelFontSize = this.getAdaptiveSimulationValueFontSize(this.simulationData.records)
 
         this.$nextTick(() => {
           try {
-            this.renderSimulationChart(this.simAnimatedRecords)
-            this.animateSimulationRecords()
+            this.renderSimulationChart(
+              this.simAnimatedRecords,
+              this.simAnimationAxisMax,
+              this.simAnimationLabelFontSize
+            )
+            this.animateSimulationRecords(() => {
+              const videoEl = this.$refs.diceVideoRef
+              if (!videoEl) return
+              const playPromise = videoEl.play()
+              if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {})
+              }
+            })
           } catch (error) {
             this.simulating = false
             this.error = '渲染模拟图失败：' + (error?.message || '未知错误')
@@ -861,11 +950,14 @@ export default {
           clearInterval(this.simulationTimer)
           this.simulationTimer = null
         }
+        this.simAnimationAxisStartMax = null
+        this.simAnimationAxisMax = null
+        this.simAnimationLabelFontSize = null
         this.simulating = false
         this.stopDiceSimulation()
       }
     },
-    animateSimulationRecords() {
+    animateSimulationRecords(onAnimationStart) {
       const finalRecords = this.simulationData.records
       if (!finalRecords.length) {
         this.simulating = false
@@ -881,43 +973,70 @@ export default {
         try {
           const elapsed = Date.now() - startTime
           const progress = Math.min(1, elapsed / duration)
+          const finalMaxCount = finalRecords.length
+            ? Math.max(...finalRecords.map(item => Number(item.count || 0)))
+            : 0
+          // Keep axis changing, but slower than bar growth:
+          // start from a higher baseline and move to final range.
+          const axisSource = finalMaxCount * (0.45 + 0.55 * progress)
+          const currentAxisMax = this.getAxisMaxWithHeadroom(axisSource, 10)
 
           this.simAnimatedRecords = finalRecords.map(item => ({
             number: item.number,
             count: Math.round(item.count * progress)
           }))
 
-          this.renderSimulationChart(this.simAnimatedRecords)
+          const animatedChartRecords = finalRecords.map(item => ({
+            number: item.number,
+            count: item.count * progress
+          }))
+          this.renderSimulationChart(animatedChartRecords, currentAxisMax, this.simAnimationLabelFontSize)
 
           if (progress >= 1) {
             clearInterval(this.simulationTimer)
             this.simulationTimer = null
             this.simAnimatedRecords = finalRecords.map(item => ({ ...item }))
-            this.renderSimulationChart(this.simulationData.records)
+            this.renderSimulationChart(
+              this.simulationData.records,
+              this.simAnimationAxisMax,
+              this.simAnimationLabelFontSize
+            )
+            this.simAnimationAxisStartMax = null
+            this.simAnimationAxisMax = null
+            this.simAnimationLabelFontSize = null
             this.simulating = false
-            this.stopDiceSimulation()
+            this.stopDiceSimulation(false)
+          }
+
+          const hasVisibleChange = this.simAnimatedRecords.some(item => item.count > 0)
+          if (hasVisibleChange && onAnimationStart) {
+            onAnimationStart()
+            onAnimationStart = null
           }
         } catch (error) {
           clearInterval(this.simulationTimer)
           this.simulationTimer = null
+          this.simAnimationAxisStartMax = null
+          this.simAnimationAxisMax = null
+          this.simAnimationLabelFontSize = null
           this.simulating = false
           this.error = '模拟动画失败：' + (error?.message || '未知错误')
           this.stopDiceSimulation()
         }
-      }, 50)
+      }, 16)
     },
-    renderSimulationChart(records = this.simulationData.records) {
+    renderSimulationChart(records = this.simulationData.records, fixedAxisMax = null, fixedLabelFontSize = null) {
       if (!this.$refs.simChartRef) return
       if (!this.simChart) this.simChart = echarts.init(this.$refs.simChartRef)
 
       const numbers = records.map(i => i.number)
       const counts = records.map(i => i.count)
       const maxCount = counts.length ? Math.max(...counts) : 0
-      const targetAxisMax = maxCount <= 3000 ? 3000 : Math.ceil((maxCount + 1) / 500) * 500
-      this.simulationAxisMax = Math.max(this.simulationAxisMax, targetAxisMax)
-      const axisMax = this.simulationAxisMax
-      const axisInterval = 500
-      this.simChartHeight = this.getAdaptiveSimChartHeight(maxCount, 360)
+      const axisMax = Math.ceil(fixedAxisMax || this.getAxisMaxWithHeadroom(maxCount, 10))
+      const axisInterval = this.getAxisInterval(axisMax)
+      const simLabelFontSize = Number(fixedLabelFontSize || this.getAdaptiveSimulationValueFontSize(records))
+      const chartHeightBasis = fixedAxisMax || maxCount
+      this.simChartHeight = this.getAdaptiveSimChartHeight(chartHeightBasis, 360)
 
       this.simChart.setOption({
         tooltip: { trigger: 'axis' },
@@ -961,7 +1080,7 @@ export default {
           z: 5,
           min: 0,
           max: axisMax,
-          name: '数量/次',
+          name: '次数',
           nameLocation: 'end',
           nameGap: 10,
           nameTextStyle: { color: '#334155', fontSize: 12, fontWeight: 600 },
@@ -986,13 +1105,23 @@ export default {
               }
             })),
             itemStyle: { borderWidth: 0, borderRadius: [4, 4, 0, 0] },
-            label: { show: true, position: 'top', distance: -2, fontSize: 18, color: '#334155' }
+            label: {
+              show: true,
+              position: 'top',
+              distance: -2,
+              fontSize: simLabelFontSize,
+              color: '#334155',
+              overflow: 'truncate',
+              width: 70,
+              formatter: ({ value }) => Math.round(Number(value || 0))
+            }
           }
         ]
       })
     },
     onResize() {
       if (this.classChart) this.classChart.resize()
+      if (this.classPieChart) this.classPieChart.resize()
       if (this.simChart) this.simChart.resize()
       Object.values(this.miniCharts).forEach(chart => chart.resize())
     }
@@ -1014,10 +1143,14 @@ export default {
   },
   beforeUnmount() {
     if (this.simulationTimer) clearInterval(this.simulationTimer)
+    this.simAnimationAxisStartMax = null
+    this.simAnimationAxisMax = null
+    this.simAnimationLabelFontSize = null
     if (this.overviewRefreshTimer) clearTimeout(this.overviewRefreshTimer)
     if (this.socket) this.socket.disconnect()
     window.removeEventListener('resize', this.onResize)
     if (this.classChart) this.classChart.dispose()
+    if (this.classPieChart) this.classPieChart.dispose()
     if (this.simChart) this.simChart.dispose()
     Object.values(this.miniCharts).forEach(chart => chart.dispose())
     this.stopTypingAudio()
@@ -1208,9 +1341,24 @@ export default {
 }
 
 .class-chart {
-  width: 70%;
-  margin: 0 auto;
+  flex: 1;
+  width: 100%;
+  margin: 0;
   min-height: 320px;
+}
+
+.class-overview-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.class-pie-chart {
+  flex: 0 0 320px;
+  height: 360px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .class-stats-row {
@@ -1575,6 +1723,16 @@ export default {
 @media (max-width: 980px) {
   .group-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .class-overview-row {
+    flex-direction: column;
+  }
+
+  .class-pie-chart {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 280px;
   }
 
   .sim-visual-row {

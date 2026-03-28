@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from models.database import get_db, Group, Record
 from pydantic import BaseModel
 from typing import List
-import random
 import re
+import numpy as np
 
 router = APIRouter(prefix="/api/teacher", tags=["teacher"])
 
 A_GROUP_NUMBERS = {2, 3, 4, 10, 11, 12}
 B_GROUP_NUMBERS = {5, 6, 7, 8, 9}
+DICE_SUM_PROBABILITIES = np.array([1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1], dtype=np.float64) / 36.0
 PREFERRED_GROUP_NAMES = ["1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组"]
 LEGACY_GROUP_NAMES = ["第一组", "第二组", "第三组", "第四组", "第五组", "第六组", "第七组", "第八组"]
 LEGACY_CODE_NAMES = ["202601", "202602", "202603", "202604", "202605", "202606", "202607", "202608"]
@@ -201,17 +202,15 @@ async def get_class_summary(db: Session = Depends(get_db)):
 
 @router.post("/simulate", response_model=SimulationSummary)
 async def simulate_dice(
-    total_times: int = Query(..., ge=1, le=1000000),
+    total_times: int = Query(..., ge=1),
 ):
     if total_times <= 0:
         raise HTTPException(status_code=400, detail="total_times must be greater than 0")
 
-    totals = {number: 0 for number in range(2, 13)}
-    for _ in range(total_times):
-        total = random.randint(1, 6) + random.randint(1, 6)
-        totals[total] += 1
+    # 使用 NumPy 实现向量化模拟
+    counts = np.random.multinomial(total_times, DICE_SUM_PROBABILITIES)
 
-    normalized = [NumberCount(number=n, count=totals[n]) for n in range(2, 13)]
+    normalized = [NumberCount(number=n, count=int(counts[n - 2])) for n in range(2, 13)]
     group_a_total = sum(item.count for item in normalized if item.number in A_GROUP_NUMBERS)
     group_b_total = sum(item.count for item in normalized if item.number in B_GROUP_NUMBERS)
 

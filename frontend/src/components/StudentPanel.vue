@@ -86,10 +86,6 @@
       </article>
     </div>
 
-    <p class="summary-text">
-      当前样本下，A组（2-4,10-12）累计 {{ statistics.groupA }} 次，B组（5-9）累计 {{ statistics.groupB }} 次，
-      {{ winnerSummaryText }}。
-    </p>
   </section>
 </template>
 
@@ -382,7 +378,7 @@ export default {
           z: 5,
           min: 0,
           max: axisMax,
-          name: '数量/次',
+          name: '次数',
           nameLocation: 'end',
           nameGap: 14,
           nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
@@ -469,7 +465,7 @@ export default {
           z: 5,
           min: 0,
           max: 10,
-          name: '数量/次',
+          name: '次数',
           nameLocation: 'end',
           nameGap: 14,
           nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
