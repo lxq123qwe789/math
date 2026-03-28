@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>3D 骰子动画 - Two Dice</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+            font-size: 14px;
+        }
+        #btn-roll {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+            z-index: 20;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: 0.2s;
+        }
+        #btn-roll:hover {
+            background: #f57c00;
+            transform: translateX(-50%) scale(1.02);
+        }
+        @media (max-width: 600px) {
+            #btn-roll { font-size: 14px; padding: 8px 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        🎲 3D 立体骰子 | 自动旋转中 | 点击下方按钮随机掷骰
+    </div>
+    <button id="btn-roll">🎲 掷骰子 🎲</button>
+
+    <!-- 引入 Three.js 核心库以及扩展 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111122);
+        scene.fog = new THREE.FogExp2(0x111122, 0.008); // 轻微雾效
+
+        // 透视相机 (视角, 宽高比, 近平面, 远平面)
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 4, 6);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // 启用阴影映射
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 可选：添加轨道控制，方便查看 (但会干扰自动旋转，可注释)
+        // const controls = new OrbitControls(camera, renderer.domElement);
+        // controls.enableDamping = true;
+
+        // --- 灯光系统 (营造立体感) ---
+        // 环境光
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        
+        // 主光源方向光
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(3, 5, 2);
+        dirLight.castShadow = true;
+        dirLight.receiveShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
+        
+        // 辅助背光暖色
+        const backLight = new THREE.PointLight(0xffaa66, 0.4);
+        backLight.position.set(-2, 1, -3);
+        scene.add(backLight);
+        
+        // 冷色填充光
+        const fillLight = new THREE.PointLight(0x6688ff, 0.3);
+        fillLight.position.set(1, 2, 2);
+        scene.add(fillLight);
+        
+        // 地面辅助阴影 (一个半透明平面接收阴影，让阴影更明显)
+        const planeHelper = new THREE.Mesh(
+            new THREE.PlaneGeometry(8, 8),
+            new THREE.ShadowMaterial({ opacity: 0.4, color: 0x000000, transparent: true, side: THREE.DoubleSide })
+        );
+        planeHelper.rotation.x = -Math.PI / 2;
+        planeHelper.position.y = -1.2;
+        planeHelper.receiveShadow = true;
+        scene.add(planeHelper);
+        
+        // 添加一个简单的网格地面辅助参考 (可选)
+        const gridHelper = new THREE.GridHelper(12, 20, 0x88aaff, 0x335588);
+        gridHelper.position.y = -1.1;
+        scene.add(gridHelper);
+
+        // --- 创建骰子纹理 (Canvas 绘制 1-6 点，保证每个面正确) ---
+        function createDiceTexture(number, color = '#ffffff', dotColor = '#000000') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // 背景
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 边框
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 20;
+            ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+            
+            // 绘制点 (圆形)
+            ctx.fillStyle = dotColor;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width * 0.12;
+            const offset = canvas.width * 0.28;
+            
+            // 根据点数布局
+            const positions = {
+                1: [[centerX, centerY]],
+                2: [[centerX - offset, centerY - offset], [centerX + offset, centerY + offset]],
+                3: [[centerX - offset, centerY - offset], [centerX, centerY], [centerX + offset, centerY + offset]],
+                4: [[centerX - offset, centerY - offset], [centerX + offset, centerY - offset],
+                    [centerX - offset, centerY + offset], [centerX + offset, centerY + offset]],
+                5: [[centerX - offset, centerY - offset], [centerX + offset, centerY - offset],
+                    [centerX, centerY],
+                    [centerX - offset, centerY + offset], [centerX + offset, centerY + offset]],
+                6: [[centerX - offset, centerY - offset], [centerX + offset, centerY - offset],
+                    [centerX - offset, centerY], [centerX + offset, centerY],
+                    [centerX - offset, centerY + offset], [centerX + offset, centerY + offset]]
+            };
+            
+            const points = positions[number];
+            if (points) {
+                points.forEach(pos => {
+                    ctx.beginPath();
+                    ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+        
+        // 定义骰子六个面的纹理 (顺序: 右, 左, 上, 下, 前, 后) 
+        // 标准骰子布局：1对面是6，2对面是5，3对面是4。
+        // 这里我们自定义映射，保证视觉上正确。
+        // 为了方便，创建六个纹理分别对应 1-6 点。
+        const tex1 = createDiceTexture(1, '#f8f8f8', '#1a1a2e');
+        const tex2 = createDiceTexture(2, '#f8f8f8', '#1a1a2e');
+        const tex3 = createDiceTexture(3, '#f8f8f8', '#1a1a2e');
+        const tex4 = createDiceTexture(4, '#f8f8f8', '#1a1a2e');
+        const tex5 = createDiceTexture(5, '#f8f8f8', '#1a1a2e');
+        const tex6 = createDiceTexture(6, '#f8f8f8', '#1a1a2e');
+        
+        // 材质数组 (顺序: x正右, x负左, y正上, y负下, z正前, z负后)
+        // 调整顺序使骰子展开符合标准方位: 右1, 左6, 上2, 下5, 前3, 后4  (常见的一种)
+        const materials = [
+            new THREE.MeshStandardMaterial({ map: tex1 }), // 右 (1点)
+            new THREE.MeshStandardMaterial({ map: tex6 }), // 左 (6点)
+            new THREE.MeshStandardMaterial({ map: tex2 }), // 上 (2点)
+            new THREE.MeshStandardMaterial({ map: tex5 }), // 下 (5点)
+            new THREE.MeshStandardMaterial({ map: tex3 }), // 前 (3点)
+            new THREE.MeshStandardMaterial({ map: tex4 })  // 后 (4点)
+        ];
+        
+        // 创建两个骰子网格
+        const diceSize = 0.9;
+        const geometry = new THREE.BoxGeometry(diceSize, diceSize, diceSize);
+        
+        const dice1 = new THREE.Mesh(geometry, materials);
+        dice1.castShadow = true;
+        dice1.receiveShadow = false;
+        dice1.position.set(-1.2, 0, 0);
+        scene.add(dice1);
+        
+        const dice2 = new THREE.Mesh(geometry, materials);
+        dice2.castShadow = true;
+        dice2.receiveShadow = false;
+        dice2.position.set(1.2, 0, 0);
+        scene.add(dice2);
+        
+        // 添加一个简单的底座平台，增强立体感
+        const platformMat = new THREE.MeshStandardMaterial({ color: 0xaa9977, roughness: 0.4, metalness: 0.1 });
+        const platform = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 3), platformMat);
+        platform.position.set(0, -0.8, 0);
+        platform.receiveShadow = true;
+        platform.castShadow = true;
+        scene.add(platform);
+        
+        // --- 辅助：添加一个微弱的粒子效果 (增加动感) ---
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 800;
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            starPositions[i*3] = (Math.random() - 0.5) * 200;
+            starPositions[i*3+1] = (Math.random() - 0.5) * 100;
+            starPositions[i*3+2] = (Math.random() - 0.5) * 80 - 40;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.08, transparent: true, opacity: 0.6 });
+        const stars = new THREE.Points(starGeometry, starMat);
+        scene.add(stars);
+        
+        // --- 动画控制变量 ---
+        let rotating = true;        // 自动旋转标志
+        let rollAnimation = false;  // 是否正在执行掷骰动画
+        let rollStartTime = 0;
+        const rollDuration = 800;   // 动画持续时间 ms
+        let startRot1 = { x: 0, y: 0, z: 0 };
+        let startRot2 = { x: 0, y: 0, z: 0 };
+        let targetRot1 = { x: 0, y: 0, z: 0 };
+        let targetRot2 = { x: 0, y: 0, z: 0 };
+        
+        // 随机生成目标旋转角度 (多圈翻滚)
+        function randomTargetRotation() {
+            return {
+                x: (Math.random() * Math.PI * 6) + Math.PI * 2,
+                y: (Math.random() * Math.PI * 6) + Math.PI * 2,
+                z: (Math.random() * Math.PI * 4) + Math.PI * 2
+            };
+        }
+        
+        // 开始掷骰子动画
+        function rollDice() {
+            if (rollAnimation) return; // 动画中不可重复触发
+            
+            rollAnimation = true;
+            rotating = false;  // 暂停自动旋转
+            rollStartTime = performance.now();
+            
+            // 记录当前旋转角度 (弧度)
+            startRot1 = {
+                x: dice1.rotation.x,
+                y: dice1.rotation.y,
+                z: dice1.rotation.z
+            };
+            startRot2 = {
+                x: dice2.rotation.x,
+                y: dice2.rotation.y,
+                z: dice2.rotation.z
+            };
+            
+            // 随机目标旋转 (多转几圈)
+            targetRot1 = randomTargetRotation();
+            targetRot2 = randomTargetRotation();
+        }
+        
+        // 按钮事件
+        document.getElementById('btn-roll').addEventListener('click', rollDice);
+        
+        // 自动旋转速度
+        let autoRotSpeed = 0.008;
+        
+        // --- 动画循环 ---
+        function animate() {
+            const now = performance.now();
+            
+            if (rollAnimation) {
+                const elapsed = now - rollStartTime;
+                let t = Math.min(1, elapsed / rollDuration);
+                // 缓动 easeOutCubic
+                const easeOut = 1 - Math.pow(1 - t, 3);
+                
+                // 插值旋转
+                dice1.rotation.x = startRot1.x + (targetRot1.x - startRot1.x) * easeOut;
+                dice1.rotation.y = startRot1.y + (targetRot1.y - startRot1.y) * easeOut;
+                dice1.rotation.z = startRot1.z + (targetRot1.z - startRot1.z) * easeOut;
+                
+                dice2.rotation.x = startRot2.x + (targetRot2.x - startRot2.x) * easeOut;
+                dice2.rotation.y = startRot2.y + (targetRot2.y - startRot2.y) * easeOut;
+                dice2.rotation.z = startRot2.z + (targetRot2.z - startRot2.z) * easeOut;
+                
+                if (t >= 1) {
+                    // 动画结束，回到自动旋转模式
+                    rollAnimation = false;
+                    rotating = true;
+                    // 确保最终角度与目标一致
+                    dice1.rotation.x = targetRot1.x;
+                    dice1.rotation.y = targetRot1.y;
+                    dice1.rotation.z = targetRot1.z;
+                    dice2.rotation.x = targetRot2.x;
+                    dice2.rotation.y = targetRot2.y;
+                    dice2.rotation.z = targetRot2.z;
+                }
+            } else if (rotating) {
+                // 自动旋转：让两个骰子各自缓慢旋转，速度略有差异更自然
+                dice1.rotation.x += autoRotSpeed * 0.7;
+                dice1.rotation.y += autoRotSpeed;
+                dice1.rotation.z += autoRotSpeed * 0.5;
+                
+                dice2.rotation.x -= autoRotSpeed * 0.5;
+                dice2.rotation.y += autoRotSpeed * 0.8;
+                dice2.rotation.z += autoRotSpeed * 0.6;
+            }
+            
+            // 让星星粒子缓慢飘动
+            stars.rotation.y += 0.0005;
+            stars.rotation.x += 0.0003;
+            
+            // 动态微调相机轻微环绕 (可选，增加生动感)
+            // 如果不希望相机动可以注释掉
+            // const time = Date.now() * 0.001;
+            // camera.position.x = 5 + Math.sin(time * 0.2) * 0.3;
+            // camera.position.y = 4 + Math.cos(time * 0.3) * 0.2;
+            camera.lookAt(0, 0, 0);
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        
+        // 启动动画
+        animate();
+        
+        // 窗口自适应
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // 控制台输出提示
+        console.log('3D 骰子已启动，点击按钮体验掷骰动画');
+    </script>
+</body>
+</html>
