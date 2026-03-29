@@ -284,7 +284,14 @@ export default {
   },
   methods: {
     getSimulationDurationMs(targetTimes) {
-      return 10000
+      const times = Number(targetTimes || 0)
+      if (!Number.isFinite(times) || times <= 0) return 8000
+
+      if (times >= 30000) return 20000
+      if (times <= 10000) return Math.round((times / 10000) * 8000)
+
+      const progress = (times - 10000) / (30000 - 10000)
+      return Math.round(8000 + progress * (20000 - 8000))
     },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
@@ -749,10 +756,10 @@ export default {
             show: true,
             borderColor: '#cbd5e1',
             borderWidth: 1,
-            left: 34,
-            right: 10,
-            top: 34,
-            bottom: 16,
+            left: 24,
+            right: 8,
+            top: 22,
+            bottom: 8,
             containLabel: true
           },
           xAxis: {
@@ -1254,7 +1261,7 @@ export default {
 }
 
 .mini-chart {
-  height: 170px;
+  height: 180px;
 }
 
 .mini-summary-toggle-row {
