@@ -741,7 +741,7 @@ export default {
         const numbers = group.records.map(i => i.number)
         const counts = group.records.map(i => i.count)
         const maxCount = counts.length ? Math.max(...counts) : 0
-        const axisMax = this.getAxisMaxWithHeadroom(maxCount, 10)
+        const axisMax = Math.max(8, maxCount)
 
         this.miniCharts[group.group_id].setOption({
           animation: false,
@@ -749,10 +749,10 @@ export default {
             show: true,
             borderColor: '#cbd5e1',
             borderWidth: 1,
-            left: 24,
-            right: 8,
-            top: 26,
-            bottom: 10,
+            left: 34,
+            right: 10,
+            top: 34,
+            bottom: 16,
             containLabel: true
           },
           xAxis: {

@@ -13,14 +13,14 @@
 
         <div class="control-overview">
           <div class="overview-top">
-            <span class="overview-title">总样本进度</span>
-            <span class="overview-value" :class="{ danger: isTotalLocked }">{{ totalCount }}/40</span>
+            <span class="overview-title">总试验次数</span>
+            <span class="overview-value" :class="{ danger: isTotalLocked }">{{ totalCount }}/20</span>
           </div>
           <div class="overview-bar">
             <div class="overview-fill" :style="{ width: `${totalProgress}%` }"></div>
           </div>
           <p class="overview-hint" :class="{ danger: isTotalLocked }">
-            {{ isTotalLocked ? '总次数已到 40，当前仅可重置后继续。' : '点击“+”累计总次数，达到40次自动停止新增。' }}
+            {{ isTotalLocked ? '总次数已到 20，当前仅可重置后继续。' : '点击“+”累计总次数，达到20次自动停止新增。' }}
           </p>
         </div>
 
@@ -154,10 +154,10 @@ export default {
       return this.groupData.reduce((sum, item) => sum + (item.count || 0), 0)
     },
     isTotalLocked() {
-      return this.totalCount >= 40
+      return this.totalCount >= 20
     },
     totalProgress() {
-      return Math.min(100, (this.totalCount / 40) * 100)
+      return Math.min(100, (this.totalCount / 20) * 100)
     },
     winnerBadgeClass() {
       if (this.statistics.winner === 'A') return 'a-badge'
@@ -258,7 +258,7 @@ export default {
 
     async incrementCount(number) {
       if (this.isTotalLocked) {
-        this.error = '总次数已达到40次，不能继续增加'
+        this.error = '总次数已达到20次，不能继续增加'
         return
       }
 
@@ -333,7 +333,7 @@ export default {
       const numbers = this.groupData.map(r => r.number)
       const counts = this.groupData.map(r => r.count)
       const maxCount = counts.length ? Math.max(...counts) : 0
-      const axisMax = Math.max(10, maxCount)
+      const axisMax = Math.max(8, maxCount)
 
       const option = {
         animationDuration: 300,
@@ -464,7 +464,7 @@ export default {
           type: 'value',
           z: 5,
           min: 0,
-          max: 10,
+          max: 8,
           name: '次数',
           nameLocation: 'end',
           nameGap: 14,
@@ -549,7 +549,11 @@ export default {
   display: grid;
   grid-template-columns: 1.08fr 1.3fr;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.layout-grid .panel-card {
+  height: 100%;
 }
 
 .panel-card {
