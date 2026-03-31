@@ -14,16 +14,7 @@
             <span class="mini-title">{{ group.group_name }}</span>
           </div>
           <div class="mini-chart" :ref="setMiniChartRef(group.group_id)"></div>
-          <div class="mini-summary-toggle-row">
-            <button
-              class="mini-summary-toggle-btn"
-              :class="{ 'mini-summary-toggle-btn-active': isMiniSummaryReady(group) }"
-              @click="toggleMiniSummary(group.group_id)"
-            >
-              {{ isMiniSummaryVisible(group.group_id) ? '统计结果 ' : '统计结果' }}
-            </button>
-          </div>
-          <div class="mini-summary-row" v-if="isMiniSummaryVisible(group.group_id)">
+          <div class="mini-summary-row">
             <div class="mini-summary-chip mini-a-chip">{{ getMiniSummaryText(group, 'a') }}</div>
             <div class="mini-summary-chip mini-b-chip">{{ getMiniSummaryText(group, 'b') }}</div>
             <div
@@ -46,7 +37,20 @@
       </div>
       <div class="class-overview-row">
         <div ref="classChartRef" class="class-chart" :style="{ height: `${classChartHeight}px` }"></div>
-        <div ref="classPieChartRef" class="class-pie-chart"></div>
+        <div class="class-group-list-panel">
+          <div
+            v-for="group in groupsOverview"
+            :key="`class-group-${group.group_id}`"
+            class="class-group-list-item"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedGroupIds.includes(group.group_id)"
+              @change="toggleGroup(group.group_id, $event)"
+            />
+            <span class="class-group-list-text">{{ group.group_name }}</span>
+          </div>
+        </div>
       </div>
       <div class="class-stats-row">
         <article class="class-stat-card class-a-card">
@@ -284,14 +288,7 @@ export default {
   },
   methods: {
     getSimulationDurationMs(targetTimes) {
-      const times = Number(targetTimes || 0)
-      if (!Number.isFinite(times) || times <= 0) return 8000
-
-      if (times >= 30000) return 20000
-      if (times <= 10000) return Math.round((times / 10000) * 8000)
-
-      const progress = (times - 10000) / (30000 - 10000)
-      return Math.round(8000 + progress * (20000 - 8000))
+      return 18000
     },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
@@ -392,13 +389,12 @@ export default {
     },
     getClassPieColors() {
       if (this.isAllSelected) {
-        return this.groupsOverview.map(() => '#D92121')
+        return this.groupsOverview.map(() => '#00FF00')
       }
 
-      const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#14b8a6', '#eab308', '#6366f1']
-      return this.groupsOverview.map((group, idx) => {
+      return this.groupsOverview.map((group) => {
         if (this.selectedGroupIds.includes(group.group_id)) {
-          return palette[idx % palette.length]
+          return '#00FF00'
         }
         return '#cbd5e1'
       })
@@ -437,13 +433,14 @@ export default {
         series: [
           {
             type: 'pie',
-            radius: ['40%', '74%'],
+            radius: '55%',
             center: ['50%', '50%'],
             avoidLabelOverlap: false,
             label: {
               formatter: (params) => params?.data?.name || '',
-              fontSize: 11,
-              color: '#334155',
+              fontSize: 26,
+              fontWeight: 700,
+              color: '#000080',
               overflow: 'none'
             },
             labelLine: { length: 8, length2: 8, smooth: false },
@@ -502,7 +499,6 @@ export default {
       this.selectedGroupIds = checked ? [...this.allGroupIds] : []
       this.$nextTick(() => {
         this.renderClassChart()
-        this.renderClassPieChart()
       })
     },
     getMiniSummaryTexts(group) {
@@ -604,7 +600,6 @@ export default {
       }
       this.$nextTick(() => {
         this.renderClassChart()
-        this.renderClassPieChart()
       })
     },
     normalizeGroupIds(groupIds) {
@@ -674,16 +669,12 @@ export default {
 
         const currentGroupIds = this.groupsOverview.map(group => group.group_id)
         this.selectedGroupIds = this.selectedGroupIds.filter(id => currentGroupIds.includes(id))
-        if (!this.selectedGroupIds.length && currentGroupIds.length) {
-          this.selectedGroupIds = [...currentGroupIds]
-        }
         this.syncMiniSummaryVisibility()
         this.refreshVisibleMiniSummaryTexts()
 
         this.$nextTick(() => {
           this.renderMiniCharts(shouldUseFullFetch ? [] : groupIdsToRedraw)
           this.renderClassChart()
-          this.renderClassPieChart()
         })
       } catch (err) {
         this.error = '获取教师端数据失败：' + (err.response?.data?.detail || err.message)
@@ -843,7 +834,7 @@ export default {
           borderColor: '#cbd5e1',
           borderWidth: 1,
           left: 24,
-          right: 24,
+          right: 6,
           top: 30,
           bottom: 24,
           containLabel: true
@@ -1348,24 +1339,52 @@ export default {
 }
 
 .class-chart {
-  flex: 1;
-  width: 100%;
-  margin: 0;
+  flex: 1 1 auto;
+  width: auto;
   min-height: 320px;
+  min-width: 0;
 }
 
 .class-overview-row {
   display: flex;
-  align-items: stretch;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 0px;
 }
 
-.class-pie-chart {
-  flex: 0 0 320px;
-  height: 360px;
+.class-group-list-panel {
+  flex: 0 0 120px;
+  max-height: 360px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.class-group-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #000080;
+  line-height: 1.1;
+}
+
+.class-group-list-item input {
+  margin: 0;
+  width: 22px;
+  height: 22px;
+  accent-color: #3b82f6;
+}
+
+.class-group-list-text {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .class-stats-row {
@@ -1736,7 +1755,7 @@ export default {
     flex-direction: column;
   }
 
-  .class-pie-chart {
+  .class-group-list-panel {
     flex: 0 0 auto;
     width: 100%;
     height: 280px;
