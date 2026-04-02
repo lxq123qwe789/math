@@ -27,7 +27,7 @@ class Group(Base):
     __tablename__ = "groups"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)  # 202601-202608
+    name = Column(String, unique=True, index=True)  # 1组-8组
     created_at = Column(DateTime, default=datetime.utcnow)
     
     users = relationship("User", back_populates="group")

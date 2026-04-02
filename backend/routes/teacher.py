@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from models.database import get_db, Group, Record
 from pydantic import BaseModel
 from typing import List
-import re
 import numpy as np
 
 router = APIRouter(prefix="/api/teacher", tags=["teacher"])
@@ -11,70 +10,23 @@ router = APIRouter(prefix="/api/teacher", tags=["teacher"])
 A_GROUP_NUMBERS = {2, 3, 4, 10, 11, 12}
 B_GROUP_NUMBERS = {5, 6, 7, 8, 9}
 DICE_SUM_PROBABILITIES = np.array([1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1], dtype=np.float64) / 36.0
-PREFERRED_GROUP_NAMES = ["1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组"]
-LEGACY_GROUP_NAMES = ["第一组", "第二组", "第三组", "第四组", "第五组", "第六组", "第七组", "第八组"]
-LEGACY_CODE_NAMES = ["202601", "202602", "202603", "202604", "202605", "202606", "202607", "202608"]
-VALID_GROUP_NAMES = PREFERRED_GROUP_NAMES + LEGACY_GROUP_NAMES + LEGACY_CODE_NAMES
-
-CHINESE_GROUP_INDEX = {
-    "第一组": 1,
-    "第二组": 2,
-    "第三组": 3,
-    "第四组": 4,
-    "第五组": 5,
-    "第六组": 6,
-    "第七组": 7,
-    "第八组": 8,
-}
+GROUP_SUFFIX = "\u7ec4"  # group suffix: 组
+PREFERRED_GROUP_NAMES = [f"{i}{GROUP_SUFFIX}" for i in range(1, 9)]
 
 
-def resolve_group_index(name: str) -> int | None:
-    if name in CHINESE_GROUP_INDEX:
-        return CHINESE_GROUP_INDEX[name]
-
-    match = re.fullmatch(r"([1-8])组", name)
-    if match:
-        return int(match.group(1))
-
-    match = re.fullmatch(r"20260([1-8])", name)
-    if match:
-        return int(match.group(1))
-
-    return None
-
-
-def group_name_priority(name: str) -> int:
-    if name in PREFERRED_GROUP_NAMES:
-        return 0
-    if name in LEGACY_GROUP_NAMES:
-        return 1
-    if name in LEGACY_CODE_NAMES:
-        return 2
-    return 3
+def group_name_index(name: str) -> int:
+    for i in range(1, 9):
+        if name == f"{i}{GROUP_SUFFIX}":
+            return i
+    return 999
 
 
 def get_teacher_groups(db: Session) -> List[Group]:
-    candidates = db.query(Group).filter(Group.name.in_(VALID_GROUP_NAMES)).all()
-    if not candidates:
-        candidates = db.query(Group).order_by(Group.id).all()
+    groups = db.query(Group).filter(Group.name.in_(PREFERRED_GROUP_NAMES)).all()
+    groups = sorted(groups, key=lambda g: group_name_index(g.name))
 
-    selected_by_index: dict[int, Group] = {}
-    for group in candidates:
-        group_index = resolve_group_index(group.name)
-        if group_index is None:
-            continue
-
-        existing = selected_by_index.get(group_index)
-        if existing is None:
-            selected_by_index[group_index] = group
-            continue
-
-        if group_name_priority(group.name) < group_name_priority(existing.name):
-            selected_by_index[group_index] = group
-
-    ordered = [selected_by_index[i] for i in range(1, 9) if i in selected_by_index]
-    if ordered:
-        return ordered
+    if groups:
+        return groups
 
     fallback = db.query(Group).order_by(Group.id).all()
     return fallback[:8]
@@ -207,7 +159,6 @@ async def simulate_dice(
     if total_times <= 0:
         raise HTTPException(status_code=400, detail="total_times must be greater than 0")
 
-    # 使用 NumPy 实现向量化模拟
     counts = np.random.multinomial(total_times, DICE_SUM_PROBABILITIES)
 
     normalized = [NumberCount(number=n, count=int(counts[n - 2])) for n in range(2, 13)]

@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     db = next(get_db())
     try:
         init_default_users(db)
-        print("✓ Database initialized with default users and groups")
+        print("Database initialized with default users and groups")
     finally:
         db.close()
     yield
@@ -128,66 +128,85 @@ def get_current_user(token: str, db: Session = Depends(get_db)):
 
 
 def init_default_users(db: Session):
-    """Initialize default users if they don't exist"""
-    group_labels = ["1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组"]
+    """Initialize groups/users with 1-8 groups only, without admin."""
+    group_suffix = "\u7ec4"  # 组
+    group_labels = [f"{i}{group_suffix}" for i in range(1, 9)]
 
-    # Admin user
-    admin = db.query(User).filter(User.username == "admin").first()
-    if not admin:
-        admin = User(
-            username="admin",
-            password="admin123",
-            role="admin"
-        )
-        db.add(admin)
-    else:
-        admin.password = "admin123"
-    db.commit()
-    
-    # Create groups
-    groups = {}
-    for i in range(1, 9):
-        old_group_name = f"20260{i}"
-        group_name = group_labels[i - 1]
+    groups: dict[str, int] = {}
+    for group_name in group_labels:
         group = db.query(Group).filter(Group.name == group_name).first()
-        if not group:
-            group = db.query(Group).filter(Group.name == old_group_name).first()
-            if group:
-                group.name = group_name
         if not group:
             group = Group(name=group_name)
             db.add(group)
             db.flush()
         groups[group_name] = group.id
+
     db.commit()
-    
-    # Student users
+
+    # Delete any non-canonical groups and clean related data.
+    all_groups = db.query(Group).order_by(Group.id).all()
+    for group in all_groups:
+        if group.name in groups:
+            continue
+        db.query(User).filter(User.group_id == group.id).update(
+            {User.group_id: None},
+            synchronize_session=False,
+        )
+        db.query(Record).filter(Record.group_id == group.id).delete(synchronize_session=False)
+        db.delete(group)
+
+    db.commit()
+
+    # Ensure no admin account is kept.
+    db.query(User).filter((User.role == "admin") | (User.username == "admin")).delete(synchronize_session=False)
+    db.commit()
+
+    required_teachers = {
+        "\u848b\u4f73\u9091": ("admin123", "teacher"),  # 蒋佳邑
+    }
+
+    # Keep 1-8 group student users.
     for i in range(1, 9):
-        old_username = f"20260{i}"
-        username = group_labels[i - 1]
+        username = f"{i}{group_suffix}"
         student = db.query(User).filter(User.username == username).first()
+
         if not student:
-            student = db.query(User).filter(User.username == old_username).first()
-            if student:
-                student.username = username
-        if not student:
-            group_id = groups.get(username)
-            if not group_id:
-                continue
             student = User(
                 username=username,
                 password="12345678",
                 role="student",
-                group_id=group_id
+                group_id=groups[username],
             )
             db.add(student)
         else:
             student.password = "12345678"
-            if groups.get(username):
-                student.group_id = groups[username]
+            student.role = "student"
+            student.group_id = groups[username]
+
     db.commit()
 
+    # Ensure required teacher users exist and stay valid.
+    for username, (password, role) in required_teachers.items():
+        teacher = db.query(User).filter(User.username == username).first()
+        if not teacher:
+            teacher = User(
+                username=username,
+                password=password,
+                role=role,
+                group_id=None,
+            )
+            db.add(teacher)
+        else:
+            teacher.password = password
+            teacher.role = role
+            teacher.group_id = None
 
+    db.commit()
+
+    # Delete extra users not in the expected user list.
+    allowed_usernames = set(group_labels) | set(required_teachers.keys())
+    db.query(User).filter(~User.username.in_(allowed_usernames)).delete(synchronize_session=False)
+    db.commit()
 # Include routers
 fastapi_app.include_router(student_router)
 fastapi_app.include_router(teacher_router)
