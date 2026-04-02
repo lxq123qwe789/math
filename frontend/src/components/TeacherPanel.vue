@@ -288,18 +288,7 @@ export default {
   },
   methods: {
     getSimulationDurationMs(targetTimes) {
-      const times = Number(targetTimes || 0)
-      if (!Number.isFinite(times) || times <= 0) return 8000
-
-      // 160 -> 4s, 10000 -> 8s, 30000 -> 16s, then capped at 20s.
-      if (times <= 160) return Math.round((times / 160) * 4000)
-      if (times <= 10000) {
-        const progressLow = (times - 160) / (10000 - 160)
-        return Math.round(4000 + progressLow * (8000 - 4000))
-      }
-
-      const durationMs = 8000 + ((times - 10000) / (30000 - 10000)) * 8000
-      return Math.min(20000, Math.round(durationMs))
+      return 18000
     },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
