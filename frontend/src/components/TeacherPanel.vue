@@ -808,9 +808,9 @@ export default {
             borderColor: '#cbd5e1',
             borderWidth: 1,
             left: 24,
-            right: 8,
+            right: 26,
             top: 22,
-            bottom: 8,
+            bottom: 12,
             containLabel: true
           },
           xAxis: {
@@ -818,6 +818,10 @@ export default {
             z: 5,
             data: numbers,
             boundaryGap: true,
+            name: '\u70b9\u6570\u548c',
+            nameLocation: 'end',
+            nameGap: 2,
+            nameTextStyle: { color: '#334155', fontSize: 8, fontWeight: 600 },
             axisLabel: {
               show: true,
               fontSize: 9,
@@ -827,8 +831,8 @@ export default {
               hideOverlap: false,
               lineHeight: 12,
               formatter(value) {
-                return Number(value) === 12 ? '12\n点数和' : `${value}`
-              }
+              return `${value}`
+            }
             },
             axisTick: { show: false },
             axisLine: { show: true, lineStyle: { color: '#64748b', width: 1 } },
@@ -842,7 +846,7 @@ export default {
             name: '次数',
             nameLocation: 'end',
             nameGap: 8,
-            nameTextStyle: { color: '#334155', fontSize: 9, fontWeight: 600 },
+            nameTextStyle: { color: '#334155', fontSize: 8, fontWeight: 600 },
             interval: 1,
             splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 2 } },
             axisLabel: { show: true, fontSize: 9, color: '#334155' },
@@ -882,7 +886,7 @@ export default {
       const numbers = this.filteredClassSummary.records.map(i => i.number)
       const counts = this.filteredClassSummary.records.map(i => i.count)
       const maxCount = counts.length ? Math.max(...counts) : 0
-      const axisMax = this.getAxisMaxWithHeadroom(maxCount, 10)
+      const axisMax = 30
       const axisInterval = this.getAxisInterval(axisMax)
       const alignedAxisMax = Math.ceil(axisMax)
       this.classChartHeight = this.getAdaptiveChartHeight(maxCount, 360)
@@ -894,7 +898,7 @@ export default {
           borderColor: '#cbd5e1',
           borderWidth: 1,
           left: 24,
-          right: 6,
+          right: 50,
           top: 30,
           bottom: 24,
           containLabel: true
@@ -904,6 +908,10 @@ export default {
           z: 5,
           data: numbers,
           boundaryGap: true,
+          name: '\u70b9\u6570\u548c',
+          nameLocation: 'end',
+          nameGap: 8,
+          nameTextStyle: { color: '#334155', fontSize: 12, fontWeight: 600 },
           axisTick: { show: false },
           axisLine: { lineStyle: { color: '#64748b', width: 1 } },
           axisLabel: {
@@ -915,7 +923,7 @@ export default {
             lineHeight: 20,
             margin: 14,
             formatter(value) {
-              return Number(value) === 12 ? '12\n点数和' : `${value}`
+              return `${value}`
             }
           },
           splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 2 } }
@@ -1106,7 +1114,7 @@ export default {
           borderColor: '#cbd5e1',
           borderWidth: 1,
           left: 20,
-          right: 20,
+          right: 54,
           top: 30,
           bottom: 24,
           containLabel: true
@@ -1116,6 +1124,10 @@ export default {
           z: 5,
           data: numbers,
           boundaryGap: true,
+          name: '\u70b9\u6570\u548c',
+          nameLocation: 'end',
+          nameGap: 8,
+          nameTextStyle: { color: '#334155', fontSize: 12, fontWeight: 600 },
           axisTick: { show: false },
           axisLine: { lineStyle: { color: '#64748b', width: 2 } },
           axisLabel: {
@@ -1127,7 +1139,7 @@ export default {
             lineHeight: 20,
             margin: 14,
             formatter(value) {
-              return Number(value) === 12 ? '12\n点数和' : `${value}`
+              return `${value}`
             }
           },
           splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 2 } }
@@ -1417,7 +1429,7 @@ export default {
 }
 
 .class-group-list-panel {
-  flex: 0 0 120px;
+  flex: 0 0 108px;
   max-height: 360px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -1573,7 +1585,7 @@ export default {
 }
 
 .sim-chart {
-  flex: 1.5;
+  flex: 1.7;
   min-width: 0;
   min-height: 220px;
 }
