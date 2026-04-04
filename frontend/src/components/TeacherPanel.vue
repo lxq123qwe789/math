@@ -205,6 +205,7 @@ export default {
       simAnimationAxisMax: null,
       simAnimationLabelFontSize: null,
       plannedSimulationDurationMs: 0,
+      simulationRenderCount: 0,
       classChartHeight: 360,
       simChartHeight: 360,
       miniSummaryVisibleMap: {},
@@ -287,8 +288,8 @@ export default {
     }
   },
   methods: {
-    getSimulationDurationMs(targetTimes) {
-      return 18000
+    getSimulationDurationMs() {
+      return this.simulationRenderCount === 0 ? 8000 : 16000
     },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
@@ -306,7 +307,8 @@ export default {
         return
       }
       this.error = ''
-      this.plannedSimulationDurationMs = this.getSimulationDurationMs(targetTimes)
+      this.plannedSimulationDurationMs = this.getSimulationDurationMs()
+      this.simulationRenderCount += 1
       this.startDiceSimulation()
       await this.runSimulation()
     },
@@ -963,8 +965,7 @@ export default {
         return
       }
 
-      const targetTimes = Number(this.simulationInput) || 0
-      const duration = this.getSimulationDurationMs(targetTimes)
+      const duration = Number(this.plannedSimulationDurationMs) || this.getSimulationDurationMs()
       const startTime = Date.now()
 
       this.simulationTimer = setInterval(() => {
