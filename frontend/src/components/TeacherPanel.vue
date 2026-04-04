@@ -117,6 +117,7 @@
               ref="diceVideoRef"
               class="dice-video"
               :src="diceVideoSrc"
+              :poster="dicePosterDataUrl"
               @error="onDiceVideoError"
               @loadedmetadata="onDiceVideoLoadedMetadata"
               playsinline
@@ -165,6 +166,27 @@ const yaotouziVideoSrcCandidates = [
   '/yaotouzi.mp4',
   './yaotouzi.mp4'
 ]
+const dicePosterSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <rect x="190" y="70" width="120" height="120" rx="22" fill="#fff" stroke="#cbd5e1" stroke-width="6"/>
+  <rect x="330" y="160" width="120" height="120" rx="22" fill="#fff" stroke="#cbd5e1" stroke-width="6"/>
+  <circle cx="225" cy="105" r="10" fill="#D92121"/>
+  <circle cx="275" cy="155" r="10" fill="#D92121"/>
+  <circle cx="365" cy="195" r="10" fill="#0f172a"/>
+  <circle cx="415" cy="245" r="10" fill="#0f172a"/>
+  <text x="320" y="325" text-anchor="middle" fill="#475569" font-size="24" font-family="Arial, sans-serif">
+    Dice Preview
+  </text>
+</svg>
+`
+const dicePosterDataUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(dicePosterSvg)}`
 
 export default {
   name: 'TeacherPanel',
@@ -215,7 +237,9 @@ export default {
       diceVideoSrcCandidates: yaotouziVideoSrcCandidates,
       diceVideoSrcIndex: 0,
       diceVideoSrc: yaotouziVideoSrcCandidates[0],
-      diceVideoLoadFailed: false
+      dicePosterDataUrl,
+      diceVideoLoadFailed: false,
+      hasStartedDiceSimulation: false
     }
   },
   computed: {
@@ -291,6 +315,40 @@ export default {
     getSimulationDurationMs() {
       return this.simulationRenderCount === 0 ? 8000 : 16000
     },
+    ensureDiceFirstFrame(videoEl = this.$refs.diceVideoRef) {
+      if (!videoEl || this.hasStartedDiceSimulation) return
+
+      const seekToFirstFrame = () => {
+        try {
+          videoEl.muted = true
+          const playPromise = videoEl.play()
+          if (playPromise && typeof playPromise.then === 'function') {
+            playPromise
+              .then(() => {
+                setTimeout(() => {
+                  if (this.hasStartedDiceSimulation) return
+                  videoEl.pause()
+                  const duration = Number(videoEl.duration || 0)
+                  const firstFrameTime = duration > 0 ? Math.min(0.05, Math.max(0.001, duration - 0.001)) : 0.001
+                  videoEl.currentTime = firstFrameTime
+                }, 80)
+              })
+              .catch(() => {})
+          } else {
+            videoEl.pause()
+            videoEl.currentTime = 0.001
+          }
+        } catch (_) {
+          // Ignore seek failures on some browsers; metadata/canplay will retry.
+        }
+      }
+
+      if (videoEl.readyState >= 2) {
+        seekToFirstFrame()
+      } else {
+        videoEl.addEventListener('loadeddata', seekToFirstFrame, { once: true })
+      }
+    },
     syncDiceVideoLoop() {
       const videoEl = this.$refs.diceVideoRef
       if (!videoEl) return
@@ -314,6 +372,7 @@ export default {
     },
     startDiceSimulation() {
       this.isDiceRolling = true
+      this.hasStartedDiceSimulation = true
       const videoEl = this.$refs.diceVideoRef
       if (!videoEl) return
       this.diceVideoLoadFailed = false
@@ -325,8 +384,10 @@ export default {
     },
     onDiceVideoError() {
       if (this.diceVideoSrcIndex >= this.diceVideoSrcCandidates.length - 1) {
-        this.diceVideoLoadFailed = true
-        this.error = '摇骰子视频加载失败，请检查网络或视频格式兼容性'
+        if (this.hasStartedDiceSimulation) {
+          this.diceVideoLoadFailed = true
+          this.error = '\u6447\u9ab0\u5b50\u89c6\u9891\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u6216\u89c6\u9891\u683c\u5f0f\u517c\u5bb9\u6027'
+        }
         return
       }
 
@@ -342,13 +403,10 @@ export default {
     onDiceVideoLoadedMetadata(event) {
       const videoEl = event?.target || this.$refs.diceVideoRef
       if (!videoEl) return
-      const width = Number(videoEl.videoWidth || 0)
-      const height = Number(videoEl.videoHeight || 0)
-      if (width <= 0 || height <= 0) {
-        this.diceVideoLoadFailed = true
-        this.error = '当前设备无法解码该视频画面（仅音频可播放），请将视频转码为 H.264 + AAC（yuv420p）'
-      }
+      // Tablet browsers may report 0x0 during metadata phase, do not mark as failure here.
+      this.diceVideoLoadFailed = false
       this.syncDiceVideoLoop()
+      this.ensureDiceFirstFrame(videoEl)
     },
     stopDiceSimulation(shouldResetFrame = true) {
       this.isDiceRolling = false
@@ -1135,6 +1193,12 @@ export default {
     await this.fetchOverview([], true)
     this.$nextTick(() => {
       this.renderSimulationChart(this.simulationData.records)
+      const videoEl = this.$refs.diceVideoRef
+      if (videoEl) {
+        videoEl.preload = 'auto'
+        videoEl.load()
+        this.ensureDiceFirstFrame(videoEl)
+      }
     })
     this.connectSocket()
 

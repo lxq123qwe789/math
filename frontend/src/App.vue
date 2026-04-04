@@ -125,7 +125,7 @@ export default {
       delete axios.defaults.headers.common.Authorization
     },
     getRoleName(role) {
-      return role === 'admin' ? '教师' : '学生'
+      return role === 'admin' || role === 'teacher' ? '\u6559\u5e08' : '\u5b66\u751f'
     }
   },
   mounted() {
