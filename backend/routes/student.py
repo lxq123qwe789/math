@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+﻿from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from models.database import get_db, Record, Group, User
@@ -92,10 +92,10 @@ async def update_record(
     # Keep total limit for the group
     group_records = db.query(Record).filter(Record.group_id == group_id).all()
     total_count = sum(r.count for r in group_records)
-    if action == "increment" and total_count >= 40:
+    if action == "increment" and total_count >= 20:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="该组总次数已达到40次，不能继续增加"
+            detail="该组总次数已达到20次，不能继续增加"
         )
     
     # Get or create record
@@ -186,3 +186,4 @@ async def reset_group_data(group_id: int, db: Session = Depends(get_db)):
         "success": True,
         "message": f"Group {group_id} data has been reset"
     }
+

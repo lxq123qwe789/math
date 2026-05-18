@@ -57,7 +57,6 @@
           </div>
         </div>
 
-        <p v-if="isLoading" class="status-info">正在更新数据...</p>
         <p v-if="error" class="status-error">{{ error }}</p>
       </article>
 
@@ -93,9 +92,14 @@
 import * as echarts from 'echarts'
 import axios from '../lib/http'
 import { io } from 'socket.io-client'
+import {
+  STUDENT_GROUP_A_NUMBERS,
+  buildStudentChartOption,
+  buildStudentInitialChartOption
+} from '../utils/charts'
 
 export default {
-  name: 'StudentPanel',
+  name: 'StudentView',
   props: {
     user: Object
   },
@@ -110,6 +114,7 @@ export default {
       isLoading: false,
       error: '',
       chart: null,
+      resizeHandler: null,
       socket: null,
       isFetchingGroupData: false,
       groupRefreshTimer: null,
@@ -143,11 +148,6 @@ export default {
     totalProgress() {
       return Math.min(100, (this.totalCount / 20) * 100)
     },
-    winnerBadgeClass() {
-      if (this.statistics.winner === 'A') return 'a-badge'
-      if (this.statistics.winner === 'B') return 'b-badge'
-      return 'tie-badge'
-    },
     winnerCardClass() {
       if (this.statistics.winner === 'A') return 'winner-a-card'
       if (this.statistics.winner === 'B') return 'winner-b-card'
@@ -157,11 +157,6 @@ export default {
       if (this.statistics.winner === 'A') return 'A组获胜'
       if (this.statistics.winner === 'B') return 'B组获胜'
       return '当前平局'
-    },
-    winnerSummaryText() {
-      if (this.statistics.winner === 'A') return 'A组获胜'
-      if (this.statistics.winner === 'B') return 'B组获胜'
-      return '两组暂时打平'
     }
   },
   methods: {
@@ -237,7 +232,7 @@ export default {
     },
 
     isAGroup(number) {
-      return [2, 3, 4, 10, 11, 12].includes(number)
+      return STUDENT_GROUP_A_NUMBERS.includes(number)
     },
 
     async incrementCount(number) {
@@ -319,97 +314,7 @@ export default {
       const maxCount = counts.length ? Math.max(...counts) : 0
       const axisMax = Math.max(8, maxCount)
 
-      const option = {
-        animationDuration: 300,
-        tooltip: {
-          trigger: 'axis',
-          formatter(params) {
-            if (!params.length) return ''
-            const item = params[0]
-            return `点数 ${item.name}：${item.value} 次`
-          }
-        },
-        xAxis: {
-          type: 'category',
-          z: 5,
-          data: numbers,
-          name: '',
-          nameLocation: 'end',
-          nameGap: 18,
-          nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600, align: 'right', padding: [0, -12, 0, 0] },
-          boundaryGap: true,
-          axisTick: { show: false },
-          axisLine: { lineStyle: { color: '#64748b', width: 1 } },
-          axisLabel: {
-            color: '#334155',
-            interval: 0,
-            hideOverlap: false,
-            lineHeight: 18,
-            formatter(value) {
-              return Number(value) === 12 ? '12\n{axisName|鐐规暟鍜寎' : `${value}`
-            },
-            rich: {
-              axisName: {
-                fontWeight: 700,
-                color: '#334155'
-              }
-            }
-          },
-          splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 1 } }
-        },
-        yAxis: {
-          type: 'value',
-          z: 5,
-          min: 0,
-          max: axisMax,
-          name: '娆℃暟',
-          nameLocation: 'end',
-          nameGap: 14,
-          nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
-          interval: 1,
-          splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 1 } },
-          axisLabel: { color: '#334155' },
-          axisLine: { show: true, lineStyle: { color: '#94a3b8', width: 1 } },
-          axisTick: { show: false }
-        },
-        series: [
-          {
-            type: 'bar',
-            z: 1,
-            barWidth: '100%',
-            barCategoryGap: '0%',
-            barGap: '0%',
-            data: numbers.map((n, idx) => ({
-              value: counts[idx],
-              itemStyle: {
-                color: [2, 3, 4, 10, 11, 12].includes(n) ? '#FFE600' : '#D92121'
-              }
-            })),
-            itemStyle: {
-              borderWidth: 0,
-            },
-            label: {
-              show: true,
-              position: 'top',
-              distance: -2,
-              color: '#1e293b',
-              fontSize: 18
-            }
-          }
-        ],
-        grid: {
-          show: true,
-          borderColor: '#cbd5e1',
-          borderWidth: 1,
-          left: 27,
-          right: 20,
-          top: 28,
-          bottom: 44,
-          containLabel: true
-        }
-      }
-
-      this.chart.setOption(option)
+      this.chart.setOption(buildStudentChartOption({ numbers, counts, axisMax }))
     },
 
     initChart() {
@@ -417,78 +322,12 @@ export default {
       if (!container) return
 
       this.chart = echarts.init(container)
-      this.chart.setOption({
-        xAxis: {
-          type: 'category',
-          z: 5,
-          data: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-          name: '',
-          nameLocation: 'end',
-          nameGap: 18,
-          nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600, align: 'right', padding: [0, -12, 0, 0] },
-          axisLine: { lineStyle: { color: '#64748b', width: 1 } },
-          axisLabel: {
-            color: '#334155',
-            interval: 0,
-            hideOverlap: false,
-            lineHeight: 18,
-            formatter(value) {
-              return Number(value) === 12 ? '12\n{axisName|鐐规暟鍜寎' : `${value}`
-            },
-            rich: {
-              axisName: {
-                fontWeight: 700,
-                color: '#334155'
-              }
-            }
-          },
-          splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 1 } }
-        },
-        yAxis: {
-          type: 'value',
-          z: 5,
-          min: 0,
-          max: 8,
-          name: '娆℃暟',
-          nameLocation: 'end',
-          nameGap: 14,
-          nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
-          interval: 1,
-          splitLine: { show: true, lineStyle: { color: '#cbd5e1', width: 1 } },
-          axisLine: { show: true, lineStyle: { color: '#94a3b8', width: 1 } },
-          axisTick: { show: false },
-          axisLabel: { color: '#334155' }
-        },
-        grid: {
-          show: true,
-          borderColor: '#cbd5e1',
-          borderWidth: 1,
-          left: 27,
-          right: 20,
-          top: 28,
-          bottom: 44,
-          containLabel: true
-        },
-        series: [{
-          type: 'bar',
-          z: 1,
-          barWidth: '100%',
-          barCategoryGap: '0%',
-          barGap: '0%',
-          data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-          label: {
-            show: true,
-            position: 'top',
-            distance: -2,
-            color: '#1e293b',
-            fontSize: 18
-          }
-        }]
-      })
+      this.chart.setOption(buildStudentInitialChartOption())
 
-      window.addEventListener('resize', () => {
+      this.resizeHandler = () => {
         this.chart?.resize()
-      })
+      }
+      window.addEventListener('resize', this.resizeHandler)
     }
   },
   mounted() {
@@ -499,6 +338,7 @@ export default {
   beforeUnmount() {
     if (this.groupRefreshTimer) clearTimeout(this.groupRefreshTimer)
     if (this.socket) this.socket.disconnect()
+    if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler)
     if (this.chart) this.chart.dispose()
   }
 }

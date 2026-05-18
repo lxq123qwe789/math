@@ -71,8 +71,8 @@
 
 <script>
 import axios from './lib/http'
-import StudentPanel from './components/StudentPanel.vue'
-import TeacherPanel from './components/TeacherPanel.vue'
+import StudentPanel from './views/StudentView.vue'
+import TeacherPanel from './views/TeacherView.vue'
 
 export default {
   name: 'App',

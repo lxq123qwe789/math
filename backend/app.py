@@ -251,33 +251,6 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
-@fastapi_app.post("/api/auth/register")
-async def register(request: LoginRequest, db: Session = Depends(get_db)):
-    """Register a new student (for testing purposes)"""
-    user = db.query(User).filter(User.username == request.username).first()
-    
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists"
-        )
-    
-    new_user = User(
-        username=request.username,
-        password=request.password,
-        role="student"
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return {
-        "user_id": new_user.id,
-        "username": new_user.username,
-        "message": "Registration successful"
-    }
-
-
 @fastapi_app.get("/api/health")
 async def health_check():
     """Health check endpoint"""

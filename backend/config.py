@@ -1,5 +1,4 @@
-import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def parse_origins(value: str | None) -> list[str]:
@@ -15,24 +14,31 @@ def parse_origins(value: str | None) -> list[str]:
 
 
 class Settings(BaseSettings):
-    # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:2833210@localhost:5432/math_teaching"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
-    
+
+    # Database
+    DATABASE_URL: str = "postgresql://postgres:2833210@localhost:5432/math_teaching"
+
     # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
-    
+
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    
+
     # CORS
-    ALLOWED_ORIGINS: list = parse_origins(os.getenv("ALLOWED_ORIGINS"))
-    ALLOWED_ORIGIN_REGEX: str = os.getenv("ALLOWED_ORIGIN_REGEX", "")
+    ALLOWED_ORIGINS_RAW: str | None = None
+    ALLOWED_ORIGIN_REGEX: str = ""
+
+    @property
+    def ALLOWED_ORIGINS(self) -> list[str]:
+        return parse_origins(self.ALLOWED_ORIGINS_RAW)
 
 
 settings = Settings()
