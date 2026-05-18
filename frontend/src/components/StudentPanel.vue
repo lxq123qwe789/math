@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="student-page">
     <header class="page-header">
       <h2 class="page-title">点数和试验</h2>
@@ -91,7 +91,7 @@
 
 <script>
 import * as echarts from 'echarts'
-import axios from 'axios'
+import axios from '../lib/http'
 import { io } from 'socket.io-client'
 
 export default {
@@ -130,22 +130,6 @@ export default {
         '6组': 6,
         '7组': 7,
         '8组': 8,
-        '第一组': 1,
-        '第二组': 2,
-        '第三组': 3,
-        '第四组': 4,
-        '第五组': 5,
-        '第六组': 6,
-        '第七组': 7,
-        '第八组': 8,
-        '202601': 1,
-        '202602': 2,
-        '202603': 3,
-        '202604': 4,
-        '202605': 5,
-        '202606': 6,
-        '202607': 7,
-        '202608': 8,
       }
 
       return nameToId[this.user?.username] || 1
@@ -362,7 +346,7 @@ export default {
             hideOverlap: false,
             lineHeight: 18,
             formatter(value) {
-              return Number(value) === 12 ? '12\n{axisName|点数和}' : `${value}`
+              return Number(value) === 12 ? '12\n{axisName|鐐规暟鍜寎' : `${value}`
             },
             rich: {
               axisName: {
@@ -378,7 +362,7 @@ export default {
           z: 5,
           min: 0,
           max: axisMax,
-          name: '次数',
+          name: '娆℃暟',
           nameLocation: 'end',
           nameGap: 14,
           nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
@@ -449,7 +433,7 @@ export default {
             hideOverlap: false,
             lineHeight: 18,
             formatter(value) {
-              return Number(value) === 12 ? '12\n{axisName|点数和}' : `${value}`
+              return Number(value) === 12 ? '12\n{axisName|鐐规暟鍜寎' : `${value}`
             },
             rich: {
               axisName: {
@@ -465,7 +449,7 @@ export default {
           z: 5,
           min: 0,
           max: 8,
-          name: '次数',
+          name: '娆℃暟',
           nameLocation: 'end',
           nameGap: 14,
           nameTextStyle: { color: '#334155', fontSize: 13, fontWeight: 600 },
@@ -991,3 +975,4 @@ export default {
   }
 }
 </style>
+

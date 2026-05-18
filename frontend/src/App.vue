@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-shell">
     <header class="topbar" v-if="isLoggedIn">
       <div class="topbar-inner">
@@ -70,7 +70,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import axios from './lib/http'
 import StudentPanel from './components/StudentPanel.vue'
 import TeacherPanel from './components/TeacherPanel.vue'
 
@@ -357,3 +357,4 @@ export default {
   line-height: 1.6;
 }
 </style>
+

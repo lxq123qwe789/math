@@ -2,6 +2,18 @@ import os
 from pydantic_settings import BaseSettings
 
 
+def parse_origins(value: str | None) -> list[str]:
+    if not value:
+        return [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://0.0.0.0:5173",
+        ]
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
@@ -19,12 +31,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # CORS
-    ALLOWED_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ]
+    ALLOWED_ORIGINS: list = parse_origins(os.getenv("ALLOWED_ORIGINS"))
+    ALLOWED_ORIGIN_REGEX: str = os.getenv("ALLOWED_ORIGIN_REGEX", "")
 
 
 settings = Settings()
