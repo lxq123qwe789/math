@@ -4,6 +4,8 @@ dist/
 *.log
 .env.local
 .env.*.local
+/backend/.env
+/backend/.jwt_secret
 
 # Python
 __pycache__/

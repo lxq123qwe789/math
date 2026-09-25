@@ -34,17 +34,12 @@
 
 ### 一键启动（Windows）
 
-启动前先在 PowerShell 中设置 JWT 密钥，然后在同一个窗口运行 `start_all.bat`：
+直接运行 `start_all.bat` 即可。首次启动后端时，如果没有配置 `SECRET_KEY` 环境变量或 `backend/.env` 中的密钥，系统会自动生成随机密钥并写入 `backend/.env`；后续启动会复用该密钥，避免重启后已有 JWT 失效。该文件已加入 Git 忽略规则，不要手动删除或提交。
 
-```powershell
-$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
-./start_all.ps1
-```
-
-上面的命令会为当前 PowerShell 会话生成密钥。生产环境应将同一个随机密钥持久配置在服务器环境变量或密钥管理服务中；不要每次启动时轮换密钥，也不要提交到代码仓库。
+正式部署时应在服务器环境变量或密钥管理服务中配置 `SECRET_KEY`，并在所有后端实例间使用相同的密钥。不要在每次启动时轮换密钥。
 
 脚本会自动：
-- 在 `math` 环境启动后端（`python -s -m uvicorn app:app --reload`）
+- 在 `math` 环境启动后端（`python app.py`）
 - 启动前端开发服务器（`npm run dev`）
 
 ### 一键停止（Windows）
@@ -63,9 +58,6 @@ $env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
 # 进入backend目录
 cd backend
 
-# 启动前生成并设置JWT签名密钥
-$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
-
 # 创建虚拟环境
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
@@ -80,7 +72,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-`SECRET_KEY` 必须通过环境变量提供，长度至少为32个字符。上面的命令会在当前 PowerShell 会话中生成一个随机密钥；生产部署时应在服务器的环境变量或密钥管理服务中设置，不要把密钥提交到代码仓库。每次启动时，系统只会补建缺失的默认小组和账号，不会重置已有账号密码或自动删除已有小组、用户和实验记录。
+本地开发时如果未配置 `SECRET_KEY`，系统会自动生成并写入 `backend/.env`。正式部署时应通过服务器环境变量或密钥管理服务配置至少32个字符的随机密钥，不要把密钥提交到代码仓库。每次启动时，系统只会补建缺失的默认小组和账号，不会重置已有账号密码或自动删除已有小组、用户和实验记录。
 
 后端将在 `http://localhost:8000` 运行
 
