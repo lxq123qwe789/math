@@ -55,6 +55,7 @@
 
           <div class="demo-info">
             <p>学生账号：1组-8组，密码：12345678</p>
+            <p>教师账号：蒋佳邑，密码：admin123</p>
           </div>
         </article>
       </section>

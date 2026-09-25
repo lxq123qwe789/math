@@ -11,7 +11,7 @@ import sys
 from pydantic import BaseModel
 
 from config import settings
-from models.database import init_db, get_db, User, Group, Record
+from models.database import init_db, get_db, User, Group
 from routes.student import router as student_router
 from routes.teacher import router as teacher_router
 from realtime import sio
@@ -103,33 +103,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-def get_current_user(token: str, db: Session = Depends(get_db)):
-    """Validate JWT token and return user"""
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    return user
-
-
 def init_default_users(db: Session):
-    """Initialize groups/users with 1-8 groups only, without admin."""
+    """Create missing default groups and accounts without changing existing data."""
     group_suffix = "\u7ec4"  # 组
     group_labels = [f"{i}{group_suffix}" for i in range(1, 9)]
 
@@ -142,31 +117,11 @@ def init_default_users(db: Session):
             db.flush()
         groups[group_name] = group.id
 
-    db.commit()
-
-    # Delete any non-canonical groups and clean related data.
-    all_groups = db.query(Group).order_by(Group.id).all()
-    for group in all_groups:
-        if group.name in groups:
-            continue
-        db.query(User).filter(User.group_id == group.id).update(
-            {User.group_id: None},
-            synchronize_session=False,
-        )
-        db.query(Record).filter(Record.group_id == group.id).delete(synchronize_session=False)
-        db.delete(group)
-
-    db.commit()
-
-    # Ensure no admin account is kept.
-    db.query(User).filter((User.role == "admin") | (User.username == "admin")).delete(synchronize_session=False)
-    db.commit()
-
     required_teachers = {
         "\u848b\u4f73\u9091": ("admin123", "teacher"),  # 蒋佳邑
     }
 
-    # Keep 1-8 group student users.
+    # Seed default student accounts only when they do not already exist.
     for i in range(1, 9):
         username = f"{i}{group_suffix}"
         student = db.query(User).filter(User.username == username).first()
@@ -179,14 +134,7 @@ def init_default_users(db: Session):
                 group_id=groups[username],
             )
             db.add(student)
-        else:
-            student.password = "12345678"
-            student.role = "student"
-            student.group_id = groups[username]
-
-    db.commit()
-
-    # Ensure required teacher users exist and stay valid.
+    # Seed the default teacher only when the account does not already exist.
     for username, (password, role) in required_teachers.items():
         teacher = db.query(User).filter(User.username == username).first()
         if not teacher:
@@ -197,16 +145,6 @@ def init_default_users(db: Session):
                 group_id=None,
             )
             db.add(teacher)
-        else:
-            teacher.password = password
-            teacher.role = role
-            teacher.group_id = None
-
-    db.commit()
-
-    # Delete extra users not in the expected user list.
-    allowed_usernames = set(group_labels) | set(required_teachers.keys())
-    db.query(User).filter(~User.username.in_(allowed_usernames)).delete(synchronize_session=False)
     db.commit()
 # Include routers
 fastapi_app.include_router(student_router)

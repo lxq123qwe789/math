@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 def parse_origins(value: str | None) -> list[str]:
@@ -24,7 +25,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:2833210@localhost:5432/math_teaching"
 
     # JWT
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = Field(min_length=32)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 

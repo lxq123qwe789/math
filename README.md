@@ -6,9 +6,9 @@
 
 - **学生端数据录入**：2-12每个数字对应的+1/-1按钮
 - **实时可视化**：柱状图展示分布，支持A/B组颜色区分
-- **防错机制**：次数上限限制（20次）、不可为负数
-- **实时更新**：2秒自动刷新数据
-- **教师端监控**（开发中）：班级监控面板、大数据模拟器
+- **防错机制**：每组总次数上限为20次，单项计数不可为负数
+- **实时更新**：通过 Socket.IO 广播数据变化，学生端和教师端收到通知后刷新相关数据
+- **教师端监控**：查看各组和班级汇总，并模拟大量骰子投掷
 
 ## 📋 系统要求
 
@@ -22,7 +22,7 @@
 - FastAPI - 高性能异步web框架
 - SQLAlchemy - ORM
 - PostgreSQL - 数据库
-- Socket.IO - 实时通信（预留）
+- Socket.IO - 实时数据变化通知
 
 ### 前端
 - Vue.js 3 - 前端框架
@@ -34,11 +34,14 @@
 
 ### 一键启动（Windows）
 
-在项目根目录双击运行 `start_all.bat`，或在 PowerShell 执行：
+启动前先在 PowerShell 中设置 JWT 密钥，然后在同一个窗口运行 `start_all.bat`：
 
 ```powershell
+$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
 ./start_all.ps1
 ```
+
+上面的命令会为当前 PowerShell 会话生成密钥。生产环境应将同一个随机密钥持久配置在服务器环境变量或密钥管理服务中；不要每次启动时轮换密钥，也不要提交到代码仓库。
 
 脚本会自动：
 - 在 `math` 环境启动后端（`python -s -m uvicorn app:app --reload`）
@@ -56,9 +59,12 @@
 
 ### 1. 后端设置
 
-```bash
+```powershell
 # 进入backend目录
 cd backend
+
+# 启动前生成并设置JWT签名密钥
+$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 # 创建虚拟环境
 python -m venv venv
@@ -73,6 +79,8 @@ pip install -r requirements.txt
 # 运行服务器
 python app.py
 ```
+
+`SECRET_KEY` 必须通过环境变量提供，长度至少为32个字符。上面的命令会在当前 PowerShell 会话中生成一个随机密钥；生产部署时应在服务器的环境变量或密钥管理服务中设置，不要把密钥提交到代码仓库。每次启动时，系统只会补建缺失的默认小组和账号，不会重置已有账号密码或自动删除已有小组、用户和实验记录。
 
 后端将在 `http://localhost:8000` 运行
 
@@ -97,11 +105,11 @@ npm run build
 ## 🔐 默认账号
 
 ### 学生账号
-- 用户名: 202601 - 202608
+- 用户名: 1组 - 8组
 - 密码: 12345678
 
 ### 教师账号
-- 用户名: admin
+- 用户名: 蒋佳邑
 - 密码: admin123
 
 ## 📋 API 文档
@@ -114,9 +122,12 @@ POST /api/student/update?group_id={group_id}&number={number}&action={action}
 ```
 
 **参数**:
-- `group_id` (int): 组ID
+- `group_id` (int): 登录学生所属组的ID；后端会验证其与账号绑定的小组一致
 - `number` (int): 点数 (2-12)
 - `action` (str): "increment" 或 "decrement"
+
+每组所有点数的计数总和最多为20。请求还必须携带登录接口返回的 JWT：
+`Authorization: Bearer <access_token>`。学生只能操作自己所属组的数据。
 
 **响应**:
 ```json
@@ -137,7 +148,7 @@ GET /api/student/group/{group_id}/data
 ```json
 {
   "group_id": 1,
-  "group_name": "202601",
+  "group_name": "1组",
   "records": [
     {"number": 2, "count": 5},
     {"number": 3, "count": 3},
@@ -154,6 +165,8 @@ GET /api/student/group/{group_id}/data
 POST /api/student/group/{group_id}/reset
 ```
 
+重置接口同样要求学生登录，并且只能重置账号所属组的数据。
+
 **响应**:
 ```json
 {
@@ -169,10 +182,13 @@ POST /api/student/group/{group_id}/reset
 POST /api/auth/login
 ```
 
+登录成功后，受保护的学生和教师接口都需要在请求头中携带返回的 JWT：
+`Authorization: Bearer <access_token>`。学生接口只允许学生角色访问，教师接口只允许教师角色访问。
+
 **请求体**:
 ```json
 {
-  "username": "202601",
+  "username": "1组",
   "password": "12345678"
 }
 ```
@@ -183,7 +199,7 @@ POST /api/auth/login
   "access_token": "eyJhbGc...",
   "token_type": "bearer",
   "user_id": 1,
-  "username": "202601",
+  "username": "1组",
   "role": "student"
 }
 ```
@@ -194,12 +210,12 @@ POST /api/auth/login
 - id: 主键
 - username: 用户名（唯一）
 - password: 密码哈希
-- role: 角色 ("admin" 或 "student")
+- role: 角色 ("teacher" 或 "student")
 - group_id: 组ID外键
 
 ### 组表 (groups)
 - id: 主键
-- name: 组名 (202601-202608)
+- name: 组名 (1组-8组)
 - created_at: 创建时间
 
 ### 记录表 (records)
@@ -216,29 +232,30 @@ POST /api/auth/login
 ### 1. 数据输入面板
 - left侧展示2-12每个数字的输入控件
 - +1按钮：增加计数（达到20时禁用）
+- 20次上限按小组所有点数的计数总和计算
 - -1按钮：减少计数（计数为0时禁用）
 - 实时显示当前计数和上限
 
 ### 2. 可视化图表
 - 柱状图展示各点数的计数分布
-- A组(5-9): 黄色 (#FFD700)
-- B组(2-4、10-12): 蓝色 (#3b82f6)
+- A组(2、3、4、10、11、12): 黄色 (#FFE600)
+- B组(5、6、7、8、9): 红色 (#D92121)
 - 每个柱子顶部实时显示计数值
 
 ### 3. 统计信息
-- A组总计: 5、6、7、8、9的计数之和
-- B组总计: 2、3、4、10、11、12的计数之和
+- A组总计: 2、3、4、10、11、12的计数之和
+- B组总计: 5、6、7、8、9的计数之和
 - 实时显示获胜组别(A/B/平局)
 
-### 4. 自动刷新
-- 每2秒自动从服务器获取最新数据
-- 确保多个用户之间的实时同步
+### 4. 实时更新
+- 后端在数据变更后通过 Socket.IO 广播受影响的小组
+- 学生端和教师端收到通知后重新获取相关数据
 
 ## 🚀 下一步开发计划
 
-- [ ] WebSocket实时推送（提高响应速度）
-- [ ] 教师端班级监控面板
-- [ ] 大数据模拟器
+- [x] Socket.IO实时数据变更通知
+- [x] 教师端班级监控面板
+- [x] 大数据模拟器
 - [ ] 数据导出功能
 - [ ] 用户权限管理完善
 - [ ] 单元测试

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from models.database import get_db, Group, Record
+from models.database import get_db, Group, Record, User
+from auth import require_teacher
 from pydantic import BaseModel
 from typing import List
 import numpy as np
@@ -109,7 +110,10 @@ def build_groups_overview(groups: List[Group], db: Session) -> List[GroupOvervie
 
 
 @router.get("/groups-overview", response_model=List[GroupOverview])
-async def get_groups_overview(db: Session = Depends(get_db)):
+async def get_groups_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
     groups = get_teacher_groups(db)
     return build_groups_overview(groups, db)
 
@@ -117,7 +121,8 @@ async def get_groups_overview(db: Session = Depends(get_db)):
 @router.get("/groups-overview-delta", response_model=List[GroupOverview])
 async def get_groups_overview_delta(
     group_ids: List[int] = Query(default=[]),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
 ):
     groups = get_teacher_groups(db)
     if group_ids:
@@ -131,7 +136,10 @@ async def get_groups_overview_delta(
 
 
 @router.get("/class-summary", response_model=ClassSummary)
-async def get_class_summary(db: Session = Depends(get_db)):
+async def get_class_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
     valid_group_ids = {group.id for group in get_teacher_groups(db)}
     records = db.query(Record).filter(Record.group_id.in_(valid_group_ids)).all()
 
@@ -155,6 +163,7 @@ async def get_class_summary(db: Session = Depends(get_db)):
 @router.post("/simulate", response_model=SimulationSummary)
 async def simulate_dice(
     total_times: int = Query(..., ge=1),
+    current_user: User = Depends(require_teacher),
 ):
     if total_times <= 0:
         raise HTTPException(status_code=400, detail="total_times must be greater than 0")

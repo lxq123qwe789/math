@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from models.database import get_db, Record, Group, User
+from auth import require_student
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -69,13 +70,21 @@ async def update_record(
     group_id: int,
     number: int,
     action: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
 ):
     """
     Update record count: increment or decrement
     number: 2-12
     action: "increment" or "decrement"
     """
+    if group_id != current_user.group_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update records for your own group",
+        )
+    authorized_group_id = current_user.group_id
+
     # Validate input
     if number < 2 or number > 12:
         raise HTTPException(
@@ -90,7 +99,7 @@ async def update_record(
         )
 
     # Keep total limit for the group
-    group_records = db.query(Record).filter(Record.group_id == group_id).all()
+    group_records = db.query(Record).filter(Record.group_id == authorized_group_id).all()
     total_count = sum(r.count for r in group_records)
     if action == "increment" and total_count >= 20:
         raise HTTPException(
@@ -100,11 +109,11 @@ async def update_record(
     
     # Get or create record
     record = db.query(Record).filter(
-        and_(Record.group_id == group_id, Record.number == number)
+        and_(Record.group_id == authorized_group_id, Record.number == number)
     ).first()
     
     if not record:
-        record = Record(group_id=group_id, number=number, count=0)
+        record = Record(group_id=authorized_group_id, number=number, count=0)
         db.add(record)
         db.flush()
     
@@ -125,7 +134,7 @@ async def update_record(
     db.commit()
     db.refresh(record)
 
-    await broadcast_data_updated(group_id)
+    await broadcast_data_updated(authorized_group_id)
     
     return {
         "success": True,
@@ -136,13 +145,24 @@ async def update_record(
 
 
 @router.get("/group/{group_id}/data")
-async def get_group_data(group_id: int, db: Session = Depends(get_db)):
+async def get_group_data(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+):
     """Get all data for a group"""
+    if group_id != current_user.group_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view records for your own group",
+        )
+    authorized_group_id = current_user.group_id
+
     # Ensure records exist
-    ensure_group_records(group_id, db)
+    ensure_group_records(authorized_group_id, db)
     
     # Get all records for this group
-    records = db.query(Record).filter(Record.group_id == group_id).order_by(Record.number).all()
+    records = db.query(Record).filter(Record.group_id == authorized_group_id).order_by(Record.number).all()
     
     if not records:
         raise HTTPException(
@@ -151,8 +171,8 @@ async def get_group_data(group_id: int, db: Session = Depends(get_db)):
         )
     
     # Get group name
-    group = db.query(Group).filter(Group.id == group_id).first()
-    group_name = group.name if group else f"Group {group_id}"
+    group = db.query(Group).filter(Group.id == authorized_group_id).first()
+    group_name = group.name if group else f"Group {authorized_group_id}"
     
     # Calculate statistics
     group_a_total, group_b_total, winner = calculate_stats(records)
@@ -161,7 +181,7 @@ async def get_group_data(group_id: int, db: Session = Depends(get_db)):
     record_list = [RecordResponse(number=r.number, count=r.count) for r in records]
     
     return GroupDataResponse(
-        group_id=group_id,
+        group_id=authorized_group_id,
         group_name=group_name,
         records=record_list,
         group_a_total=group_a_total,
@@ -171,19 +191,29 @@ async def get_group_data(group_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/group/{group_id}/reset")
-async def reset_group_data(group_id: int, db: Session = Depends(get_db)):
+async def reset_group_data(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_student),
+):
     """Reset all data for a group"""
-    records = db.query(Record).filter(Record.group_id == group_id).all()
+    if group_id != current_user.group_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only reset records for your own group",
+        )
+    authorized_group_id = current_user.group_id
+    records = db.query(Record).filter(Record.group_id == authorized_group_id).all()
     for record in records:
         record.count = 0
         record.updated_at = datetime.utcnow()
     
     db.commit()
 
-    await broadcast_data_updated(group_id)
+    await broadcast_data_updated(authorized_group_id)
     
     return {
         "success": True,
-        "message": f"Group {group_id} data has been reset"
+        "message": f"Group {authorized_group_id} data has been reset"
     }
 

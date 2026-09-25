@@ -23,6 +23,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if not defined SECRET_KEY (
+  echo [ERROR] SECRET_KEY environment variable is not set.
+  echo Set a random secret in PowerShell before starting the services:
+  echo   $env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
+  pause
+  exit /b 1
+)
+
 if not exist "%~dp0backend\app.py" (
   echo [ERROR] backend\app.py not found.
   echo Make sure this script is in project root.
