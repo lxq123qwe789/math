@@ -23,7 +23,7 @@
       <section v-if="!isLoggedIn" class="login-wrap">
         <article class="login-card">
           <h2 class="login-title">欢迎登录</h2>
-          <p class="login-desc">请输入账号信息进入系统</p>
+          <p class="login-desc">请输入账号信息</p>
 
           <form class="login-form" @submit.prevent="handleLogin">
             <div class="field-group">
