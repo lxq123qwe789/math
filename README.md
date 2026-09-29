@@ -94,6 +94,58 @@ npm run build
 
 前端将在 `http://localhost:5173` 运行
 
+## 🐳 Docker 部署（Ubuntu）
+
+项目提供 Docker Compose 部署配置：前端由 Nginx 提供静态文件并代理 `/api` 和 `/socket.io`，Caddy 作为入口代理；配置域名后 Caddy 会自动申请和续期 HTTPS 证书。后端和 PostgreSQL 不发布到公网，数据库使用 Docker 命名卷持久保存。
+
+### 1. 准备域名和服务器端口
+
+如需 HTTPS，先将域名的 A 记录指向服务器公网 IP。云服务器安全组至少放行 TCP 22（建议仅允许自己的 IP）、80 和 443。没有域名时，可先将 `.env` 中的 `DOMAIN` 保持为 `:80`，通过 HTTP 临时验证；正式对公网提供登录服务前应配置域名和 HTTPS。
+
+### 2. 在 Ubuntu 安装 Docker
+
+按 [Docker 官方 Ubuntu 安装指南](https://docs.docker.com/engine/install/ubuntu/) 安装 Docker Engine 和 Compose 插件。安装完成后确认 `docker compose version` 可用。
+
+### 3. 获取代码并配置环境变量
+
+在服务器将项目克隆到部署目录，然后进入项目根目录：
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，设置 `DOMAIN`、数据库名和数据库用户，并填入随机密码和 JWT 密钥。可以分别运行 `openssl rand -hex 24` 和 `openssl rand -hex 32` 生成密码与密钥，再把结果写入 `.env`。`SECRET_KEY` 至少需要 32 个字符。保护配置文件权限：
+
+```bash
+chmod 600 .env
+```
+
+`.env` 不要提交到 Git。Compose 会将其中的 `SECRET_KEY` 和数据库连接地址传给后端容器；容器间使用服务名 `db` 连接 PostgreSQL。
+
+### 4. 构建并启动
+
+在项目根目录执行：
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+配置好域名后通过 `https://你的域名` 访问；如果暂时使用 `DOMAIN=:80`，通过 `http://服务器公网IP` 访问。确认 API 健康接口、登录、学生和教师页面以及实时更新功能正常。
+
+### 5. 更新和数据保护
+
+更新代码后执行 `git pull` 和 `docker compose up -d --build`。普通停止可使用 `docker compose down`；**不要使用 `docker compose down -v`**，它会删除数据库数据卷。定期备份数据库：
+
+```bash
+bash scripts/backup_db.sh
+```
+
+备份会保存在 `backups/`，该目录不会提交到 Git。还应定期将备份和 `.env` 的安全副本保存到服务器以外的位置。如果要迁移已有 PostgreSQL 数据，需要另行从旧数据库导出并导入；首次启动的 Compose 数据库不会自动包含旧数据。
+
+Docker 发布的端口可能绕过 UFW 规则，因此也要在云服务商安全组中限制公网端口；PostgreSQL 的 5432 和后端的 8000 不应开放到公网。更多信息见 [Docker Compose 生产部署说明](https://docs.docker.com/compose/how-tos/production/)。
+
 ## 🔐 默认账号
 
 ### 学生账号

@@ -18,6 +18,10 @@ from realtime import sio
 
 
 def enforce_math_environment():
+    # The container has its own isolated Python environment and does not use Conda.
+    if os.getenv("DOCKER_CONTAINER") == "1":
+        return
+
     expected_env = "math"
     active_env = os.getenv("CONDA_DEFAULT_ENV", "")
     executable = (sys.executable or "").lower().replace("\\", "/")
