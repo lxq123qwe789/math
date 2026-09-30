@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="student-page">
     <header class="page-header">
       <h2 class="page-title">点数和试验</h2>
@@ -42,6 +42,7 @@
               <button
                 @click="decrementCount(number)"
                 :disabled="getData(number)?.count === 0"
+                :aria-label="`点数和 ${number} 减少一次`"
                 class="minus-btn"
               >
                 -
@@ -49,6 +50,7 @@
               <button
                 @click="incrementCount(number)"
                 :disabled="isTotalLocked"
+                :aria-label="`点数和 ${number} 增加一次`"
                 class="plus-btn"
               >
                 +
@@ -90,6 +92,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { markRaw } from 'vue'
 import axios from '../lib/http'
 import { io } from 'socket.io-client'
 import {
@@ -321,13 +324,20 @@ export default {
       const container = this.$refs.chartContainer
       if (!container) return
 
-      this.chart = echarts.init(container)
+      this.chart = markRaw(echarts.init(container))
       this.chart.setOption(buildStudentInitialChartOption())
 
       this.resizeHandler = () => {
-        this.chart?.resize()
+        if (this.chartResizeFrame) cancelAnimationFrame(this.chartResizeFrame)
+        this.chartResizeFrame = requestAnimationFrame(() => {
+          this.chartResizeFrame = null
+          if (container.clientWidth && container.clientHeight) this.chart?.resize()
+        })
       }
+      this.chartResizeObserver = new ResizeObserver(this.resizeHandler)
+      this.chartResizeObserver.observe(container)
       window.addEventListener('resize', this.resizeHandler)
+      document.addEventListener('fullscreenchange', this.resizeHandler)
     }
   },
   mounted() {
@@ -336,483 +346,15 @@ export default {
     this.connectSocket()
   },
   beforeUnmount() {
+    this.chartResizeObserver?.disconnect()
+    if (this.chartResizeFrame) cancelAnimationFrame(this.chartResizeFrame)
     if (this.groupRefreshTimer) clearTimeout(this.groupRefreshTimer)
     if (this.socket) this.socket.disconnect()
     if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler)
+    if (this.resizeHandler) document.removeEventListener('fullscreenchange', this.resizeHandler)
     if (this.chart) this.chart.dispose()
   }
 }
 </script>
 
-<style scoped>
-.student-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.page-header {
-  margin-top: 8px;
-  text-align: center;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.2;
-  color: #0f172a;
-}
-
-.page-subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.layout-grid {
-  display: grid;
-  grid-template-columns: 1.08fr 1.3fr;
-  gap: 16px;
-  align-items: stretch;
-}
-
-.layout-grid .panel-card {
-  height: 100%;
-}
-
-.panel-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
-  padding: 16px;
-}
-
-.panel-head {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.control-card .panel-head {
-  margin-bottom: 10px;
-}
-
-.chart-card .panel-head {
-  margin-bottom: 40px;
-}
-
-.panel-head-with-action {
-  position: relative;
-  justify-content: flex-end;
-}
-
-.panel-head h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #0f172a;
-  text-align: center;
-}
-
-.panel-head-with-action h3 {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.reset-btn {
-  border: none;
-  border-radius: 10px;
-  background: #0f172a;
-  color: #fff;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.control-overview {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #f8fafc;
-  margin-bottom: 12px;
-}
-
-.overview-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.overview-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #334155;
-}
-
-.overview-value {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.overview-value.danger {
-  color: #b91c1c;
-}
-
-.overview-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.overview-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: #3b82f6;
-  transition: width 0.2s ease;
-}
-
-.overview-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.overview-hint.danger {
-  color: #b91c1c;
-  font-weight: 600;
-}
-
-.number-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.control-card .number-grid {
-  column-gap: 10px;
-  row-gap: 21px;
-}
-
-.number-item {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.control-card .number-item {
-  padding: 8px;
-  gap: 8px;
-  min-height: 86px;
-}
-
-.number-item.full {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-}
-
-.number-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.num-value {
-  font-size: 26px;
-  line-height: 1;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.control-card .num-value {
-  font-size: 30px;
-}
-
-.number-item.group-a .num-value {
-  color: #FFE600;
-}
-
-.number-item.group-b .num-value {
-  color: #D92121;
-}
-
-.num-tag {
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 3px 8px;
-}
-
-.a-tag {
-  background: #FFE600;
-  color: #1f2937;
-}
-
-.b-tag {
-  background: #D92121;
-  color: #ffffff;
-}
-
-.full-flag {
-  color: #ef4444;
-}
-
-.action-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.minus-btn,
-.plus-btn {
-  border: none;
-  border-radius: 10px;
-  padding: 8px 0;
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.control-card .minus-btn,
-.control-card .plus-btn {
-  padding: 3px 0;
-  font-size: 18px;
-}
-
-.minus-btn {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.plus-btn {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.minus-btn:disabled {
-  background: #dcfce7;
-  color: #15803d;
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.plus-btn:disabled {
-  background: #fee2e2;
-  color: #b91c1c;
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.chart-container {
-  height: 380px;
-}
-
-.status-info {
-  margin: 12px 0 0;
-  color: #3b82f6;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.status-error {
-  margin: 10px 0 0;
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stat-card {
-  border-radius: 14px;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 1px solid #e2e8f0;
-  white-space: nowrap;
-}
-
-.stat-icon {
-  font-size: 22px;
-}
-
-.stat-line {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 800;
-}
-
-.stats-row .stat-card:nth-child(3) .stat-line {
-  font-size: 50px;
-}
-
-.winner-flag {
-  font-size: 33px;
-}
-
-.ball-icon {
-  color: #334155;
-}
-
-.stat-label {
-  margin: 0;
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.large-label {
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 800;
-}
-
-.stat-value {
-  margin: 4px 0 0;
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 800;
-}
-
-.a-card {
-  background: #fef9c3;
-}
-
-.a-card .stat-label,
-.a-card .stat-value,
-.a-card .stat-icon {
-  color: #a16207;
-}
-
-.b-card {
-  background: #fee2e2;
-}
-
-.b-card .stat-label,
-.b-card .stat-value,
-.b-card .stat-icon {
-  color: #b91c1c;
-}
-
-.winner-card {
-  background: #ffffff;
-}
-
-.winner-a-card {
-  background: #ffffff;
-}
-
-.winner-a-card .stat-label,
-.winner-a-card .stat-icon {
-  color: #64748b;
-}
-
-.winner-a-card .stat-line {
-  color: #FFE600;
-}
-
-.winner-b-card {
-  background: #ffffff;
-}
-
-.winner-b-card .stat-label,
-.winner-b-card .stat-icon {
-  color: #64748b;
-}
-
-.winner-b-card .stat-line {
-  color: #D92121;
-}
-
-.winner-tie-card {
-  background: #ffffff;
-}
-
-.winner-badge {
-  margin-top: 6px;
-  display: inline-block;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.a-badge {
-  background: #fef9c3;
-  color: #a16207;
-}
-
-.b-badge {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.tie-badge {
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.summary-text {
-  margin: 2px 0 0;
-  color: #334155;
-  font-size: 15px;
-  line-height: 1.75;
-  text-align: center;
-}
-
-@media (max-width: 1100px) {
-  .layout-grid {
-    grid-template-columns: 1fr 1fr;
-    align-items: stretch;
-  }
-
-  .layout-grid .panel-card {
-    height: 100%;
-  }
-
-  .chart-container {
-    height: 340px;
-  }
-}
-
-@media (max-width: 760px) {
-  .layout-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .page-title {
-    font-size: 24px;
-  }
-
-  .number-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .stats-row {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
-
+<style scoped src="./student-layout.css"></style>

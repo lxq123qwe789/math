@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="app-shell">
+<template>
+  <div class="app-shell" :class="{ 'teacher-app': isLoggedIn && currentUser && currentUser.role !== 'student', 'student-app': isLoggedIn && currentUser?.role === 'student' }">
     <header class="topbar" v-if="isLoggedIn">
       <div class="topbar-inner">
         <div class="brand">
@@ -14,10 +14,12 @@
             <p class="user-name">{{ currentUser.username }}</p>
             <p class="user-role">{{ getRoleName(currentUser.role) }}</p>
           </div>
+          <button v-if="!isFullscreen" class="fullscreen-btn" @click="enterFullscreen">进入全屏</button>
           <button class="logout-btn" @click="logout">退出</button>
         </div>
       </div>
     </header>
+    <p v-if="isLoggedIn && fullscreenError" class="fullscreen-error" role="status">{{ fullscreenError }}</p>
 
     <main class="main-container" :class="{ 'login-mode': !isLoggedIn }">
       <section v-if="!isLoggedIn" class="login-wrap">
@@ -87,6 +89,8 @@ export default {
       currentUser: null,
       isLoading: false,
       loginError: '',
+      isFullscreen: false,
+      fullscreenError: '',
       loginForm: {
         username: '',
         password: ''
@@ -94,9 +98,34 @@ export default {
     }
   },
   methods: {
+    syncFullscreenState() {
+      this.isFullscreen = document.fullscreenElement === this.$el
+      if (this.isFullscreen) this.fullscreenError = ''
+    },
+    async enterFullscreen() {
+      this.fullscreenError = ''
+      const entered = await this.requestFullscreen()
+      this.syncFullscreenState()
+      if (!entered) this.fullscreenError = '未能进入全屏，请再次点击按钮，或使用浏览器的全屏功能。'
+    },
+    requestFullscreen() {
+      const appElement = document.querySelector('.app-shell')
+      if (!appElement || !appElement.requestFullscreen) return Promise.resolve(false)
+      if (document.fullscreenElement === appElement) return Promise.resolve(true)
+
+      try {
+        return appElement.requestFullscreen()
+          .then(() => true)
+          .catch(() => false)
+      } catch (_) {
+        return Promise.resolve(false)
+      }
+    },
     async handleLogin() {
       this.isLoading = true
       this.loginError = ''
+      // Request fullscreen during the submit gesture; browsers require direct user activation.
+      const fullscreenRequest = this.requestFullscreen()
 
       try {
         const response = await axios.post('/api/auth/login', {
@@ -112,13 +141,26 @@ export default {
         this.isLoggedIn = true
         this.loginForm = { username: '', password: '' }
         axios.defaults.headers.common.Authorization = `Bearer ${access_token}`
+        await fullscreenRequest
       } catch (error) {
+        await fullscreenRequest
+        if (document.fullscreenElement) {
+          try {
+            await document.exitFullscreen()
+          } catch (_) {
+            // Ignore browser fullscreen teardown errors after a failed login.
+          }
+        }
         this.loginError = error.response?.data?.detail || '登录失败，请检查用户名和密码'
       } finally {
         this.isLoading = false
       }
     },
     logout() {
+      this.fullscreenError = ''
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      }
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       this.isLoggedIn = false
@@ -126,10 +168,12 @@ export default {
       delete axios.defaults.headers.common.Authorization
     },
     getRoleName(role) {
-      return role === 'admin' || role === 'teacher' ? '\u6559\u5e08' : '\u5b66\u751f'
+      return role === 'admin' || role === 'teacher' ? '教师' : '学生'
     }
   },
   mounted() {
+    this.syncFullscreenState()
+    document.addEventListener('fullscreenchange', this.syncFullscreenState)
     const token = localStorage.getItem('token')
     const user = localStorage.getItem('user')
 
@@ -138,6 +182,9 @@ export default {
       this.isLoggedIn = true
       axios.defaults.headers.common.Authorization = `Bearer ${token}`
     }
+  },
+  beforeUnmount() {
+    document.removeEventListener('fullscreenchange', this.syncFullscreenState)
   }
 }
 </script>
@@ -226,6 +273,94 @@ export default {
   font-weight: 600;
   cursor: pointer;
 }
+
+.fullscreen-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fullscreen-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.fullscreen-error { flex: 0 0 auto; margin: 0; padding: 8px 20px; color: #b91c1c; background: #fef2f2; text-align: center; font-size: 13px; }
+
+.app-shell:fullscreen {
+  width: 100%;
+  min-height: 100vh;
+  overflow: auto;
+  background: #f8fafc;
+}
+
+.app-shell:fullscreen .main-container {
+  width: 100%;
+  max-width: 1600px;
+}
+.app-shell:fullscreen .main-container:not(.login-mode) {
+  min-height: calc(100vh - 133px);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell:fullscreen .topbar-inner {
+  max-width: 1600px;
+}
+
+.app-shell:is(.teacher-app, .student-app) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-shell:is(.teacher-app, .student-app) .topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell:is(.teacher-app, .student-app) .main-container {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1200px;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.app-shell:is(.teacher-app, .student-app):fullscreen {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: auto;
+}
+
+.app-shell:is(.teacher-app, .student-app):fullscreen .main-container {
+  max-width: 1600px;
+  flex: 1 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+@media (max-width: 640px) {
+  :is(.teacher-app, .student-app) .topbar-inner { flex-wrap: wrap; }
+  :is(.teacher-app, .student-app) .topbar-inner { gap: 8px; padding: 12px; }
+  :is(.teacher-app, .student-app) .brand { gap: 6px; min-width: 0; }
+  :is(.teacher-app, .student-app) .brand-title { font-size: 16px; }
+  :is(.teacher-app, .student-app) .brand-icon { display: none; }
+  :is(.teacher-app, .student-app) .user-panel { flex: 0 0 auto; gap: 8px; }
+  .app-shell:is(.teacher-app, .student-app) .main-container { padding: 16px 12px 24px; }
+}
+
+/* Allocate the actual remaining viewport height to the student workspace. */
+@media (min-width: 1000px) and (min-height: 650px) {
+  .app-shell.student-app:fullscreen .topbar-inner { padding-top: 8px; padding-bottom: 8px; }
+  .app-shell.student-app:fullscreen .main-container {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 12px 20px 16px;
+  }
+}
+
 
 .main-container {
   max-width: 1200px;

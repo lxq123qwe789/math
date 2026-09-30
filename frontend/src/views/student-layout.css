@@ -1,0 +1,121 @@
+.student-page {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.page-header { flex: 0 0 auto; text-align: center; }
+.page-title { margin: 0; font-size: clamp(24px, 2.4vw, 30px); line-height: 1.3; color: #0f172a; }
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.25fr);
+  flex: 1 0 auto;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+}
+
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.panel-head { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 12px; min-height: 40px; }
+.panel-head h3 { margin: 0; font-size: 18px; color: #0f172a; }
+.panel-head-with-action { justify-content: space-between; }
+.reset-btn { flex: 0 0 auto; min-height: 40px; padding: 8px 14px; border: 0; border-radius: 10px; background: #0f172a; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+.control-overview { flex: 0 0 auto; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.overview-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.overview-title { font-size: 14px; font-weight: 700; color: #334155; }
+.overview-value { font-size: 18px; font-weight: 800; color: #0f172a; }
+.overview-bar { height: 8px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.overview-fill { height: 100%; border-radius: 999px; background: #3b82f6; transition: width 0.2s ease; }
+.overview-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: #64748b; }
+.overview-value.danger, .overview-hint.danger { color: #b91c1c; font-weight: 700; }
+
+/* Each tile retains enough width for two usable touch targets. */
+.number-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; }
+.number-item { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.number-item.full { background: #f1f5f9; border-color: #cbd5e1; }
+.number-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.num-value { font-size: 28px; line-height: 1.1; font-weight: 800; }
+.number-item.group-a .num-value { color: #FFE600; }
+.number-item.group-b .num-value { color: #D92121; }
+.num-tag { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.a-tag { background: #FFE600; color: #1f2937; }
+.b-tag { background: #D92121; color: #fff; }
+.action-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.minus-btn, .plus-btn { min-height: 40px; padding: 6px 0; border: 0; border-radius: 8px; font-size: 22px; line-height: 1; font-weight: 700; cursor: pointer; }
+.minus-btn { background: #dcfce7; color: #15803d; }
+.plus-btn { background: #fee2e2; color: #b91c1c; }
+.minus-btn:disabled, .plus-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.reset-btn:focus-visible, .minus-btn:focus-visible, .plus-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+.chart-container { flex: 1 0 380px; min-width: 0; min-height: 380px; overflow: hidden; }
+.status-error { margin: 0; padding: 10px 12px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 13px; overflow-wrap: anywhere; }
+
+.stats-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex: 0 0 auto; }
+.stat-card { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; min-height: 88px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 14px; }
+.stat-icon { flex: 0 0 auto; font-size: 22px; }
+.stat-line { margin: 0; min-width: 0; font-size: clamp(18px, 1.7vw, 24px); line-height: 1.3; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
+.winner-card .stat-line { font-size: clamp(24px, 2.8vw, 40px); }
+.winner-flag { font-size: 28px; }
+.a-card { background: #fef9c3; }
+.b-card { background: #fee2e2; }
+.a-card .stat-icon { color: #a16207; }
+.b-card .stat-icon { color: #b91c1c; }
+.winner-card { background: #fff; }
+.winner-a-card .stat-line { color: #FFE600; }
+.winner-b-card .stat-line { color: #D92121; }
+
+@media (max-width: 980px) {
+  .layout-grid { grid-template-columns: minmax(0, 1fr); }
+  .chart-container { flex-basis: 360px; min-height: 360px; }
+}
+
+@media (max-width: 640px) {
+  .panel-card { padding: 12px; gap: 12px; }
+  .number-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-row { grid-template-columns: minmax(0, 1fr); }
+  .stat-card { min-height: 68px; }
+  .chart-container { flex-basis: 320px; min-height: 320px; }
+}
+
+/* Keep desktop fullscreen content on one page without clipping smaller screens. */
+@media (min-width: 1000px) and (min-height: 650px) {
+  :fullscreen .student-page { flex: 1 1 0; min-height: 0; gap: 10px; }
+  :fullscreen .page-title { font-size: 24px; }
+  :fullscreen .layout-grid {
+    flex: 1 1 0;
+    min-height: 430px;
+    grid-template-columns: minmax(400px, 0.95fr) minmax(0, 1.25fr);
+    gap: 12px;
+  }
+  :fullscreen .panel-card { padding: 12px; gap: 8px; }
+  :fullscreen .panel-head { min-height: 34px; }
+  :fullscreen .reset-btn { min-height: 34px; padding: 6px 12px; }
+  :fullscreen .control-overview { padding: 8px 10px; }
+  :fullscreen .overview-top { margin-bottom: 6px; }
+  :fullscreen .overview-hint { margin-top: 6px; }
+  :fullscreen .number-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  :fullscreen .number-item { padding: 6px; gap: 6px; }
+  :fullscreen .num-value { font-size: 24px; }
+  :fullscreen .num-tag { padding: 2px 5px; }
+  :fullscreen .action-row { gap: 6px; }
+  :fullscreen .minus-btn, :fullscreen .plus-btn { min-height: 36px; font-size: 20px; }
+  :fullscreen .chart-container { flex: 1 1 0; min-height: 260px; }
+  :fullscreen .stat-card { min-height: 64px; padding: 8px 12px; }
+  :fullscreen .stat-line { font-size: 20px; }
+  :fullscreen .winner-card .stat-line { font-size: 30px; }
+}

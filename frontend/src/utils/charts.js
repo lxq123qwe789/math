@@ -265,6 +265,7 @@ export function buildStudentChartOption({ numbers, counts, axisMax }) {
     animationDuration: 300,
     tooltip: {
       trigger: 'axis',
+      confine: true,
       formatter(params) {
         if (!params.length) return ''
         const item = params[0]
