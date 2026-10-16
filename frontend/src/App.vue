@@ -65,6 +65,7 @@
       <StudentPanel
         v-else-if="currentUser && currentUser.role === 'student'"
         :user="currentUser"
+        @request-fullscreen="restoreStudentFullscreen"
       />
 
       <TeacherPanel v-else />
@@ -107,6 +108,12 @@ export default {
       const entered = await this.requestFullscreen()
       this.syncFullscreenState()
       if (!entered) this.fullscreenError = '未能进入全屏，请再次点击按钮，或使用浏览器的全屏功能。'
+    },
+    restoreStudentFullscreen() {
+      if (!this.isLoggedIn || this.currentUser?.role !== 'student' || document.fullscreenElement === this.$el) return
+      // Start the request inside the student's click gesture, before an API call awaits.
+      this.fullscreenError = ''
+      this.requestFullscreen().then(() => this.syncFullscreenState())
     },
     requestFullscreen() {
       const appElement = document.querySelector('.app-shell')
@@ -174,6 +181,8 @@ export default {
   mounted() {
     this.syncFullscreenState()
     document.addEventListener('fullscreenchange', this.syncFullscreenState)
+    document.addEventListener('visibilitychange', this.syncFullscreenState)
+    window.addEventListener('pageshow', this.syncFullscreenState)
     const token = localStorage.getItem('token')
     const user = localStorage.getItem('user')
 
@@ -185,6 +194,8 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('fullscreenchange', this.syncFullscreenState)
+    document.removeEventListener('visibilitychange', this.syncFullscreenState)
+    window.removeEventListener('pageshow', this.syncFullscreenState)
   }
 }
 </script>
@@ -351,14 +362,50 @@ export default {
   .app-shell:is(.teacher-app, .student-app) .main-container { padding: 16px 12px 24px; }
 }
 
-/* Allocate the actual remaining viewport height to the student workspace. */
-@media (min-width: 1000px) and (min-height: 650px) {
-  .app-shell.student-app:fullscreen .topbar-inner { padding-top: 8px; padding-bottom: 8px; }
+/* Tablet workspace uses the available viewport height even after fullscreen ends. */
+@media (min-width: 700px) and (min-height: 650px) {
+  .app-shell.student-app,
+  .app-shell.student-app:fullscreen {
+    height: 100vh;
+    min-height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+  .app-shell.student-app .topbar-inner,
+  .app-shell.student-app:fullscreen .topbar-inner { padding: 8px 16px; }
+  .app-shell.student-app .main-container,
   .app-shell.student-app:fullscreen .main-container {
     flex: 1 1 0;
     min-height: 0;
-    padding: 12px 20px 16px;
+    max-width: 1600px;
+    padding: 10px 16px 12px;
   }
+}
+
+/* The teacher sections scroll inside the space below the fixed header. */
+.app-shell.teacher-app,
+.app-shell.teacher-app:fullscreen {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.teacher-app .main-container,
+.app-shell.teacher-app:fullscreen .main-container {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 20px 20px;
+}
+.app-shell.teacher-app:fullscreen .topbar-inner { padding-top: 8px; padding-bottom: 8px; }
+.app-shell.teacher-app:fullscreen .main-container {
+  padding: 12px 20px 16px;
+}
+
+@media (max-width: 640px) {
+  .app-shell.teacher-app .main-container,
+  .app-shell.teacher-app:fullscreen .main-container { padding: 12px; }
 }
 
 

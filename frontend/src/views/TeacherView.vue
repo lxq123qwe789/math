@@ -1,10 +1,6 @@
 <template>
-  <section class="teacher-page">
-    <nav class="teacher-tabs" aria-label="教师统计页面" role="tablist">
-      <button v-for="tab in tabs" :key="tab.id" class="teacher-tab" :class="{ 'teacher-tab-active': activeTab === tab.id }" :aria-selected="activeTab === tab.id" role="tab" @click="setActiveTab(tab.id)">{{ tab.label }}</button>
-    </nav>
-
-    <article v-show="activeTab === 'groups'" class="panel-card teacher-panel groups-panel">
+  <section class="teacher-page" aria-label="教师统计内容" tabindex="0">
+    <article class="panel-card teacher-panel groups-panel">
       <div class="section-head"><h3>小组试验结果统计图</h3></div>
       <div class="group-grid">
         <div v-for="group in groupsOverview" :key="group.group_id" class="mini-card">
@@ -19,7 +15,7 @@
       </div>
     </article>
 
-    <article v-show="activeTab === 'class'" class="panel-card teacher-panel class-panel">
+    <article class="panel-card teacher-panel class-panel">
       <div class="section-head"><h3>全班试验结果统计图</h3></div>
       <div class="class-overview-row">
         <div ref="classChartRef" class="class-chart"></div>
@@ -37,7 +33,7 @@
       </div>
     </article>
 
-    <article v-show="activeTab === 'simulation'" class="panel-card teacher-panel simulation-panel" ref="simulationPanelRef">
+    <article class="panel-card teacher-panel simulation-panel">
       <div class="section-head"><h3>大数据试验统计</h3></div>
       <div class="sim-controls">
         <input v-model="simulationInput" type="number" min="1" class="sim-input" placeholder="请输入模拟次数" />
@@ -60,34 +56,6 @@
         <article class="class-stat-card class-a-card"><span class="class-stat-icon">●</span><p class="class-stat-line">掷到A组：{{ Number(simulationDisplayGroupATotal ?? 0) }}次</p></article>
         <article class="class-stat-card class-b-card"><span class="class-stat-icon">●</span><p class="class-stat-line">掷到B组：{{ Number(simulationDisplayGroupBTotal ?? 0) }}次</p></article>
         <article class="class-stat-card class-winner-card" :class="classWinnerCardClass(simulationData.winner)"><span class="class-stat-icon class-flag">🚩</span><p class="class-stat-line">{{ winnerText(simulationData.winner) }}</p></article>
-      </div>
-    </article>
-
-    <div v-if="activeTab === 'simulation' && pendingComparisonSimulation" class="pending-simulation">
-      <span>两次对比结果已保存。请选择替换项：</span>
-      <button class="sim-btn" @click="saveSimulationToSlot(0)">替换试验一</button>
-      <button class="sim-btn" @click="saveSimulationToSlot(1)">替换试验二</button>
-      <button class="secondary-btn" @click="pendingComparisonSimulation = null">取消</button>
-    </div>
-
-    <article v-show="activeTab === 'comparison'" class="panel-card teacher-panel comparison-panel">
-      <div class="section-head comparison-heading"><h3>对比图</h3></div>
-      <div class="comparison-grid">
-        <section class="comparison-item"><h4>小组试验结果统计图</h4>
-          <div class="group-grid comparison-groups">
-            <div v-for="group in comparisonData.groups" :key="`comparison-${group.group_id}`" class="mini-card">
-              <div class="mini-head"><span class="mini-title">{{ group.group_name }}</span></div>
-              <div class="mini-chart" :ref="setComparisonMiniChartRef(group.group_id)"></div>
-
-            </div>
-          </div>
-        </section>
-        <section class="comparison-item"><h4>全班试验结果统计图</h4><div ref="comparisonClassChartRef" class="class-chart"></div></section>
-        <section v-for="(run, index) in comparisonData.simulations" :key="`run-${index}`" class="comparison-item">
-          <h4>大数据试验{{ index + 1 }}</h4>
-          <template v-if="run"><div :ref="setComparisonSimulationChartRef(index)" class="comparison-sim-chart"></div><p class="comparison-total">模拟次数：{{ run.total_times }} 次</p></template>
-          <p v-else class="comparison-empty">尚未保存该次模拟。请在“大数据试验统计”中运行模拟。</p>
-        </section>
       </div>
     </article>
 
@@ -139,22 +107,7 @@ export default {
   name: 'TeacherView',
   data() {
     return {
-      tabs: [
-        { id: 'groups', label: '小组试验结果统计图' },
-        { id: 'class', label: '全班试验结果统计图' },
-        { id: 'simulation', label: '大数据试验统计' },
-        { id: 'comparison', label: '对比图' }
-      ],
-      activeTab: 'groups',
       groupsOverview: [],
-      comparisonData: { groups: [], classSummary: null, simulations: [null, null] },
-      isUpdatingComparison: false,
-      pendingComparisonSimulation: null,
-      comparisonMiniCharts: {},
-      comparisonMiniChartEls: {},
-      comparisonClassChart: null,
-      comparisonSimulationCharts: {},
-      comparisonSimulationChartEls: {},
       simulationInput: '',
       simulationData: {
         records: Array.from({ length: 11 }, (_, idx) => ({ number: idx + 2, count: 0 })),
@@ -227,27 +180,6 @@ export default {
       const groupATotal = records.filter(record => GROUP_A_NUMBERS.includes(record.number)).reduce((sum, record) => sum + record.count, 0)
       const groupBTotal = records.filter(record => GROUP_B_NUMBERS.includes(record.number)).reduce((sum, record) => sum + record.count, 0)
       return { records, group_a_total: groupATotal, group_b_total: groupBTotal, winner: groupATotal === groupBTotal ? 'Tie' : groupATotal > groupBTotal ? 'A' : 'B' }
-    },
-    setActiveTab(tabId) {
-      this.activeTab = tabId
-      this.$nextTick(() => {
-        if (tabId === 'groups') {
-          this.renderMiniCharts()
-        }
-        if (tabId === 'class') this.renderClassChart()
-        if (tabId === 'simulation') {
-          if (this.$refs.simulationPanelRef) this.$refs.simulationPanelRef.scrollTop = 0
-          this.renderSimulationChart()
-        }
-        if (tabId === 'comparison') this.updateComparisonData()
-        this.onResize()
-      })
-    },
-    setComparisonMiniChartRef(groupId) {
-      return el => { if (el) this.comparisonMiniChartEls[groupId] = el }
-    },
-    setComparisonSimulationChartRef(index) {
-      return el => { if (el) this.comparisonSimulationChartEls[index] = el }
     },
     getSimulationDurationMs() {
       return this.simulationRenderCount === 0 ? 8000 : 16000
@@ -561,10 +493,8 @@ export default {
         this.refreshVisibleMiniSummaryTexts()
 
         this.$nextTick(() => {
-          if (this.activeTab === 'groups') {
-            this.renderMiniCharts()
-          }
-          if (this.activeTab === 'class') this.renderClassChart()
+          this.renderMiniCharts()
+          this.renderClassChart()
         })
       } catch (err) {
         this.error = '获取数据失败：' + (err.response?.data?.detail || err.message)
@@ -641,84 +571,6 @@ export default {
         axisInterval: this.getAxisInterval(axisMax)
       }))
     },
-    async updateComparisonData() {
-      if (this.isUpdatingComparison) return
-      this.isUpdatingComparison = true
-      try {
-        const response = await axios.get('/api/teacher/groups-overview')
-        const groups = response.data.map(group => JSON.parse(JSON.stringify(group)))
-        this.comparisonData = {
-          groups,
-          classSummary: this.summarizeGroups(groups),
-          simulations: this.comparisonData.simulations
-        }
-        await this.$nextTick()
-        this.renderComparisonCharts()
-      } catch (err) {
-        this.error = '更新对比数据失败：' + (err.response?.data?.detail || err.message)
-      } finally {
-        this.isUpdatingComparison = false
-      }
-    },
-    saveSimulationToSlot(index) {
-      if (!this.pendingComparisonSimulation) return
-      const simulations = [...this.comparisonData.simulations]
-      simulations[index] = JSON.parse(JSON.stringify(this.pendingComparisonSimulation))
-      this.comparisonData = { ...this.comparisonData, simulations }
-      this.pendingComparisonSimulation = null
-      if (this.activeTab === 'comparison') this.$nextTick(() => this.renderComparisonCharts())
-    },
-    saveSimulationForComparison(result) {
-      const emptyIndex = this.comparisonData.simulations.findIndex(run => !run)
-      if (emptyIndex >= 0) {
-        const simulations = [...this.comparisonData.simulations]
-        simulations[emptyIndex] = JSON.parse(JSON.stringify(result))
-        this.comparisonData = { ...this.comparisonData, simulations }
-      } else {
-        this.pendingComparisonSimulation = JSON.parse(JSON.stringify(result))
-      }
-    },
-    renderComparisonCharts() {
-      const groups = this.comparisonData.groups
-      const sharedMax = Math.max(8, ...groups.flatMap(group => (group.records || []).map(record => Number(record.count || 0))))
-      groups.forEach(group => {
-        const el = this.comparisonMiniChartEls[group.group_id]
-        if (!el) return
-        if (!this.comparisonMiniCharts[group.group_id]) this.comparisonMiniCharts[group.group_id] = markRaw(echarts.init(el))
-        this.comparisonMiniCharts[group.group_id].setOption(buildMiniChartOption({
-          numbers: group.records.map(item => item.number),
-          counts: group.records.map(item => item.count),
-          axisMax: sharedMax
-        }))
-      })
-      const classEl = this.$refs.comparisonClassChartRef
-      if (classEl && this.comparisonData.classSummary) {
-        if (!this.comparisonClassChart) this.comparisonClassChart = markRaw(echarts.init(classEl))
-        const summary = this.comparisonData.classSummary
-        const maxCount = Math.max(0, ...summary.records.map(item => item.count))
-        const axisMax = Math.max(30, Math.ceil(maxCount))
-        this.comparisonClassChart.setOption(buildClassChartOption({
-          numbers: summary.records.map(item => item.number),
-          counts: summary.records.map(item => item.count),
-          alignedAxisMax: axisMax,
-          axisInterval: this.getAxisInterval(axisMax)
-        }))
-      }
-      this.comparisonData.simulations.forEach((run, index) => {
-        const el = this.comparisonSimulationChartEls[index]
-        if (!run || !el) return
-        if (!this.comparisonSimulationCharts[index]) this.comparisonSimulationCharts[index] = markRaw(echarts.init(el))
-        const counts = run.records.map(record => Number(record.count || 0))
-        const axisMax = Math.max(10, ...counts)
-        this.comparisonSimulationCharts[index].setOption(buildSimulationChartOption({
-          numbers: run.records.map(record => record.number),
-          counts,
-          axisMax,
-          axisInterval: this.getAxisInterval(axisMax),
-          simLabelFontSize: this.getAdaptiveSimulationValueFontSize(run.records)
-        }))
-      })
-    },
     async runSimulation() {
       const targetTimes = Number(this.simulationInput)
       if (!Number.isInteger(targetTimes) || targetTimes < 1) {
@@ -732,7 +584,6 @@ export default {
           params: { total_times: targetTimes }
         })
         this.simulationData = res.data
-        this.saveSimulationForComparison(res.data)
         if (this.simulationTimer) {
           clearInterval(this.simulationTimer)
           this.simulationTimer = null
@@ -863,22 +714,19 @@ export default {
       this.chartResizeFrame = requestAnimationFrame(() => {
         this.chartResizeFrame = null
         const charts = [
-          this.classChart, this.simChart, this.comparisonClassChart,
-          ...Object.values(this.miniCharts),
-          ...Object.values(this.comparisonMiniCharts),
-          ...Object.values(this.comparisonSimulationCharts)
+          this.classChart, this.simChart,
+          ...Object.values(this.miniCharts)
         ]
         charts.forEach(chart => {
           if (!chart || chart.isDisposed()) return
           const element = chart.getDom()
-          // Hidden tabs have no measurable size; resize them when shown instead.
           if (element.clientWidth && element.clientHeight) chart.resize()
         })
       })
     },
     observeChartContainers() {
       if (!this.chartResizeObserver) return
-      this.$el.querySelectorAll('.mini-chart, .class-chart, .sim-chart, .comparison-sim-chart').forEach(element => {
+      this.$el.querySelectorAll('.mini-chart, .class-chart, .sim-chart').forEach(element => {
         if (this.observedChartElements.has(element)) return
         this.observedChartElements.add(element)
         this.chartResizeObserver.observe(element)
@@ -902,6 +750,7 @@ export default {
 
     await this.fetchOverview([], true)
     this.$nextTick(() => {
+      this.renderSimulationChart()
       const videoEl = this.$refs.diceVideoRef
       if (videoEl) {
         videoEl.preload = 'auto'
@@ -926,9 +775,6 @@ export default {
     if (this.classChart) this.classChart.dispose()
     if (this.simChart) this.simChart.dispose()
     Object.values(this.miniCharts).forEach(chart => chart.dispose())
-    Object.values(this.comparisonMiniCharts).forEach(chart => chart.dispose())
-    Object.values(this.comparisonSimulationCharts).forEach(chart => chart.dispose())
-    if (this.comparisonClassChart) this.comparisonClassChart.dispose()
     this.stopTypingAudio()
     this.typingAudio = null
     this.stopDiceSimulation()

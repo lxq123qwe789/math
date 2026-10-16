@@ -1,5 +1,5 @@
 <template>
-  <section class="student-page">
+  <section class="student-page" @click.capture="restoreFullscreenOnAction">
     <header class="page-header">
       <h2 class="page-title">点数和试验</h2>
     </header>
@@ -103,6 +103,7 @@ import {
 
 export default {
   name: 'StudentView',
+  emits: ['request-fullscreen'],
   props: {
     user: Object
   },
@@ -163,6 +164,12 @@ export default {
     }
   },
   methods: {
+    restoreFullscreenOnAction(event) {
+      const button = event.target.closest('button')
+      if (button && !button.disabled && button.matches('.plus-btn, .minus-btn, .reset-btn')) {
+        this.$emit('request-fullscreen')
+      }
+    },
     async fetchGroupData() {
       if (this.isFetchingGroupData) {
         this.hasPendingGroupRefresh = true
@@ -338,6 +345,7 @@ export default {
       this.chartResizeObserver.observe(container)
       window.addEventListener('resize', this.resizeHandler)
       document.addEventListener('fullscreenchange', this.resizeHandler)
+      document.addEventListener('visibilitychange', this.resizeHandler)
     }
   },
   mounted() {
@@ -352,6 +360,7 @@ export default {
     if (this.socket) this.socket.disconnect()
     if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler)
     if (this.resizeHandler) document.removeEventListener('fullscreenchange', this.resizeHandler)
+    if (this.resizeHandler) document.removeEventListener('visibilitychange', this.resizeHandler)
     if (this.chart) this.chart.dispose()
   }
 }
